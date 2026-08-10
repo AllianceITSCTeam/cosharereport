@@ -22,22 +22,47 @@ A standalone reporting site for the CoShare project. Reused technical scaffold f
   - `routes/index.tsx` — `/` (protected dashboard), `/auth-error` (public), catch-all 404. No `/login` route exists.
   - `components/ProtectedRoute.tsx` — shows an informational message (not a redirect) when there's no session, since there's nowhere to redirect to.
 - `packages/shared` — shared types only (`ApiResponse<T>` envelope). No Vibe365-specific enums/constants.
-- `prisma/schema.prisma` — currently a placeholder (datasource + generator only). The real models come from introspecting CoShare's live database — see below.
+- `apps/api/prisma/schema.prisma` — **already introspected** from CoShare's live database (~504 models). Refresh with `prisma db pull` when their schema changes (never `migrate` — see Database below).
 
 ## Database
 
 The target database is CoShare's existing production/staging schema, not one this app owns or migrates.
 
-- Never run `prisma migrate` against `DATABASE_URL` — this app has a readonly role and shouldn't be changing CoShare's schema even if it could.
-- To pick up schema changes: `cd apps/api && npx prisma db pull && npx prisma generate`.
-- Every new Prisma query must be readonly (`findMany`/`findUnique`/`aggregate`/`count`/`$queryRaw` — never `create`/`update`/`delete`/`$executeRaw*`). The Prisma middleware in `prisma.service.ts` throws on writes as a backstop, but don't rely on it — just don't write.
+**HARD RULES — the connection string is READONLY. This app (and Claude) can only READ.**
+
+- **Never write anything to the database** — no `create`/`update`/`delete`/`upsert`/`$executeRaw*`, no `prisma migrate`, no `CREATE`/`ALTER`/`DROP`/`INSERT`/`UPDATE`/`DELETE`. Every query must be readonly (`findMany`/`findUnique`/`aggregate`/`count`/`$queryRaw`). The Prisma middleware in `prisma.service.ts` throws on writes as a backstop — but don't rely on it, just don't write.
+- **Need a DB view or function?** Claude does NOT create it (no permission). Write the SQL, save it under `sql-scripts/` (naming below), and **hand the task to a HUMAN** to run it — state clearly what to run and why.
+- **`sql-scripts/` folder** — every SQL script (view/function definitions, reconciliation queries, ad-hoc checks) is saved here so there's a trail. Filename format: `yyyy-MM-dd HH:mm <short description>.sql`. See `sql-scripts/README.md`.
+- To pick up schema changes: `cd apps/api && npx prisma db pull && npx prisma generate` (introspection only — reads, never writes).
 
 ## Adding a report
 
-Follow the pattern in `apps/api/src/reports/`:
-1. Add a method to `reports.service.ts` doing one readonly Prisma query (or a small set of them).
-2. Add a `@Get('...')` handler to `reports.controller.ts` (already behind `JwtAuthGuard`).
-3. Add a matching function to `apps/web/src/api/reports.api.ts` and a page/component under `apps/web/src/pages/` + `apps/web/src/routes/index.tsx`.
+Full workflow + verification checklist: `docs/reports/_TEMPLATE.md`. Business definitions
+(timezone, soft-delete, status enums, metric formulas) live in `docs/db/`. Curated table docs:
+`docs/db/table-dictionary.md`. Raw backend docs (from `ck:doc`): `docs/coshare-backend/`.
+
+Code pattern — follow `apps/api/src/reports/` (`latestUsers` is a working end-to-end example):
+1. **Write the test first** (see TDD rule below) — the first test for a report is a *number
+   reconciliation* (invariant + golden), not "does it return rows".
+2. Add a method to `reports.service.ts` doing one readonly Prisma query (or a small set of them).
+3. Add a `@Get('...')` handler to `reports.controller.ts` (already behind `JwtAuthGuard`).
+4. Add a matching function to `apps/web/src/api/reports.api.ts` and a page/component under `apps/web/src/pages/` + `apps/web/src/routes/index.tsx`.
+5. **Verify the numbers**, not just that it runs — reconcile against a known slice / CoShare golden numbers (`docs/reports/_TEMPLATE.md` §6).
+
+## Testing — TDD is mandatory
+
+This project runs **TDD: red → green → refactor.** Write the failing test **before** the code.
+The biggest risk here is *numbers that are wrong but look plausible*, so tests are the spec.
+
+- **Reports:** the first test is a **number-reconciliation** test — an *invariant* (sum of groups
+  = grand total; no JOIN fan-out) and/or a *golden number* — written before the query. See
+  `standards/08-verification.md` for what to reconcile, `principles/testing.md` for how to write it.
+- **Two tiers:** *Unit* tests **mock Prisma** (deterministic, run in CI) — never hit the real DB
+  in CI. A separate *reconciliation* suite hits the live DB (invariants + golden), opt-in via
+  `RECON_DB=1`, and is **not** a CI gate (prod data drifts).
+- **Golden numbers** live in one place (`docs/db/conventions.md §5` + the report's spec), mirrored
+  into a single test fixture with a `snapshotDate` — never hardcoded ad-hoc across tests.
+- A `*.service.ts` without a `*.service.spec.ts` must not merge — warn the HUMAN first.
 
 ## Open questions with the CoShare team (not yet answered)
 
