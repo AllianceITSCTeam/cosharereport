@@ -1,0 +1,15 @@
+BLOCKED_USER="khanhtl2allainceitsc"
+CURRENT_USER=$(git config user.name)
+if [ "$CURRENT_USER" = "$BLOCKED_USER" ]; then
+  BA_STAGED=$(git diff --cached --name-only --diff-filter=ACMR | grep "^BA/" || true)
+  if [ -n "$BA_STAGED" ]; then
+    echo "ERROR: $BLOCKED_USER is not permitted to modify the BA/ folder."
+    echo "Staged BA files:"
+    echo "$BA_STAGED"
+    echo "Move feedback/questions to docs/ba-change-requests/ instead."
+    exit 1
+  fi
+fi
+
+cd "$(git rev-parse --show-toplevel)/DEV"
+pnpm check

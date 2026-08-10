@@ -1,0 +1,10 @@
+[build]
+builder = "RAILPACK"
+buildCommand = "rm -rf apps/web/dist && pnpm --filter web build && rm -rf apps/api/public && mkdir -p apps/api/public && cp -r apps/web/dist/. apps/api/public/ && pnpm --filter api exec prisma generate && pnpm --filter api build && echo '=== DIST CHECK ===' && ls -la apps/api/dist/"
+
+[deploy]
+# No `prisma migrate deploy` here — this app only has a readonly role on
+# CoShare's database and must never run DDL against it.
+startCommand = "pnpm --filter api exec prisma generate && node apps/api/dist/apps/api/src/main.js"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 1

@@ -1,0 +1,5 @@
+@nestjs/core
+@prisma/client
+@prisma/engines
+esbuild
+prisma

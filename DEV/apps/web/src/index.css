@@ -1,0 +1,327 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Brand */
+    --primary: 239 84% 59%;           /* #4F46E5 indigo-600 */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 243 75% 52%;     /* #4338CA indigo-700 */
+
+    /* Surfaces */
+    --background: 210 40% 98%;        /* #F8FAFC slate-50 */
+    --foreground: 222 47% 11%;        /* #0F172A slate-900 */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Secondary / muted */
+    --secondary: 241 40% 96%;         /* indigo tint */
+    --secondary-foreground: 239 84% 42%;
+    --muted: 214 32% 96%;
+    --muted-foreground: 215 16% 47%;  /* #64748B slate-500 */
+    --accent: 241 40% 96%;
+    --accent-foreground: 239 84% 42%;
+
+    /* Semantic */
+    --destructive: 0 84% 60%;         /* #DC2626 */
+    --destructive-foreground: 0 0% 100%;
+    --success: 160 84% 39%;           /* #10B981 emerald-500 */
+    --warning: 38 92% 50%;            /* #F59E0B amber-500 */
+
+    /* Structure */
+    --border: 215 28% 90%;            /* #E2E8F0 */
+    --input: 215 28% 90%;
+    --ring: 239 84% 59%;
+    --radius: 0.75rem;
+
+    /* Sidebar */
+    --sidebar-bg: 240 16% 11%;        /* #15162A deep navy */
+    --sidebar-text: 215 28% 75%;
+    --sidebar-text-active: 0 0% 100%;
+    --sidebar-active-bg: 239 84% 59%;
+    --sidebar-hover-bg: 240 16% 16%;
+    --sidebar-border: 240 16% 17%;
+
+    /* Elevation shadows (colored) */
+    --shadow-sm: 0 1px 3px rgba(79, 70, 229, 0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 16px rgba(79, 70, 229, 0.10), 0 2px 4px rgba(0,0,0,0.04);
+    --shadow-lg: 0 10px 40px rgba(79, 70, 229, 0.14), 0 4px 8px rgba(0,0,0,0.05);
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 10%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 10%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 239 84% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 16% 18%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 240 16% 18%;
+    --muted-foreground: 215 20% 60%;
+    --accent: 240 16% 18%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 240 16% 18%;
+    --input: 240 16% 18%;
+    --ring: 239 84% 65%;
+  }
+
+  /* ── Vibe theme — ocean blue brand palette ──────────────────────────────── */
+  .vibe {
+    /* Brand */
+    --primary: 199 89% 48%;             /* #0ea5e9 sky-500 */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 200 98% 39%;       /* #0284c7 sky-600 */
+
+    /* Surfaces */
+    --background: 210 40% 98%;          /* same as light — clean white */
+    --foreground: 210 24% 16%;          /* #1e293b slate-800 */
+    --card: 0 0% 100%;
+    --card-foreground: 210 24% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 24% 16%;
+
+    /* Secondary / muted */
+    --secondary: 199 30% 94%;           /* sky tint */
+    --secondary-foreground: 199 89% 32%;
+    --muted: 200 30% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 199 30% 94%;
+    --accent-foreground: 199 89% 32%;
+
+    /* Semantic (unchanged) */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 160 84% 39%;
+    --warning: 38 92% 50%;
+
+    /* Structure */
+    --border: 199 30% 88%;
+    --input: 199 30% 88%;
+    --ring: 199 89% 48%;
+    --radius: 0.75rem;
+
+    /* Sidebar — deep ocean navy */
+    --sidebar-bg: 211 62% 12%;          /* #0c1a2e deep ocean */
+    --sidebar-text: 199 30% 72%;
+    --sidebar-text-active: 0 0% 100%;
+    --sidebar-active-bg: 199 89% 48%;   /* sky-500 */
+    --sidebar-hover-bg: 211 62% 18%;
+    --sidebar-border: 211 62% 18%;
+
+    /* Elevation shadows (sky blue tinted) */
+    --shadow-sm: 0 1px 3px rgba(14, 165, 233, 0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 16px rgba(14, 165, 233, 0.12), 0 2px 4px rgba(0,0,0,0.04);
+    --shadow-lg: 0 10px 40px rgba(14, 165, 233, 0.16), 0 4px 8px rgba(0,0,0,0.05);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Prevent layout shift when dialogs add overflow:hidden to body (scrollbar gutter stays reserved) */
+    scrollbar-gutter: stable;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+@layer utilities {
+  .emoji-glyph {
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Gradient background (primary button) */
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+  }
+  .bg-gradient-primary:hover {
+    background: linear-gradient(135deg, #4338CA 0%, #6D28D9 100%);
+  }
+
+  /* Card with colored shadow */
+  .card-elevated {
+    box-shadow: var(--shadow-md);
+  }
+  .card-elevated:hover {
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Auth background pattern */
+  .auth-bg {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4C1D95 100%);
+  }
+
+  /* Shimmer skeleton */
+  .skeleton {
+    @apply animate-pulse bg-muted rounded;
+  }
+}
+
+.attendance-range-picker-popper {
+  z-index: 40;
+}
+
+.attendance-range-picker-panel {
+  overflow: hidden;
+  border-radius: calc(var(--radius) + 0.125rem);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow: var(--shadow-lg);
+  opacity: 1;
+}
+
+.attendance-range-picker-inner {
+  display: flex;
+  flex-direction: row;
+}
+
+.attendance-range-picker-months {
+  display: flex;
+  flex-direction: row;
+}
+
+.attendance-range-picker-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.5rem 0.375rem;
+  border-right: 1px solid hsl(var(--border));
+  min-width: 7.5rem;
+}
+
+.attendance-range-picker-calendar {
+  border: 0 !important;
+  background: transparent !important;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
+}
+
+.attendance-range-picker-popper .react-datepicker {
+  display: flex;
+  border: 0 !important;
+  background: hsl(var(--card)) !important;
+  opacity: 1 !important;
+}
+
+.attendance-range-picker-calendar .react-datepicker__month-container {
+  float: none;
+  border-right: 1px solid hsl(var(--border));
+}
+
+.attendance-range-picker-calendar .react-datepicker__month-container:last-child {
+  border-right: 0;
+}
+
+.attendance-range-picker-calendar .react-datepicker__header {
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  padding-top: 0;
+}
+
+.attendance-range-picker-calendar .react-datepicker__current-month,
+.attendance-range-picker-calendar .react-datepicker-time__header,
+.attendance-range-picker-calendar .react-datepicker-year-header {
+  color: hsl(var(--foreground));
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.attendance-range-picker-calendar .react-datepicker__day-name {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.attendance-range-picker-calendar .react-datepicker__day,
+.attendance-range-picker-calendar .react-datepicker__day-name {
+  width: 2.2rem;
+  line-height: 2.2rem;
+  margin: 0.125rem;
+}
+
+.attendance-range-picker-calendar .react-datepicker__day {
+  border-radius: 0.65rem;
+  color: hsl(var(--foreground));
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.attendance-range-picker-calendar .react-datepicker__day:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.attendance-range-picker-calendar .react-datepicker__day--in-selecting-range:hover,
+.attendance-range-picker-calendar .react-datepicker__day--in-range:hover {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.attendance-range-picker-calendar .react-datepicker__day--keyboard-selected,
+.attendance-range-picker-calendar .react-datepicker__day--in-selecting-range,
+.attendance-range-picker-calendar .react-datepicker__day--in-range {
+  background: hsl(var(--primary) / 0.16);
+  color: hsl(var(--foreground));
+}
+
+.attendance-range-picker-calendar .react-datepicker__day--range-start,
+.attendance-range-picker-calendar .react-datepicker__day--range-end,
+.attendance-range-picker-calendar .react-datepicker__day--selected {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.attendance-range-picker-calendar .react-datepicker__day--outside-month {
+  color: hsl(var(--muted-foreground) / 0.55);
+}
+
+.attendance-range-picker-calendar .react-datepicker__month {
+  background: hsl(var(--card));
+  margin: 0.5rem;
+}
+
+.attendance-range-picker-calendar .react-datepicker__navigation {
+  display: none;
+}
+
+.attendance-range-picker-calendar .react-datepicker__triangle {
+  display: none;
+}

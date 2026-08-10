@@ -1,0 +1,4 @@
+if git diff --cached --name-only 2>/dev/null | grep -q "prisma/migrations/"; then
+  echo "Migration files detected in push."
+  echo "Ensure you have reviewed the migration SQL for destructive operations (DROP, ALTER TYPE)."
+fi

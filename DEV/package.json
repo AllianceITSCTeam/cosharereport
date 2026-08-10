@@ -1,0 +1,23 @@
+{
+  "name": "coshare-report",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter api dev\" \"pnpm --filter web dev\"",
+    "build": "pnpm --filter web build && rm -rf apps/api/public && mkdir -p apps/api/public && cp -r apps/web/dist/. apps/api/public/ && pnpm --filter api build",
+    "start": "node apps/api/dist/main.js",
+    "start:prod": "pnpm build && node apps/api/dist/main.js",
+    "db:pull": "pnpm --filter api exec prisma db pull",
+    "db:studio": "pnpm --filter api exec prisma studio",
+    "check": "pnpm --filter api type-check",
+    "lint": "pnpm -r lint",
+    "prepare": "cd .. && (husky DEV/.husky || true)",
+    "lint-staged": "lint-staged"
+  },
+
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0"
+  }
+}
