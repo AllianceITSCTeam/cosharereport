@@ -115,7 +115,16 @@ Phan Thị Sen, Võ Thị Kiều Thu**. ⇒ drill-down 1 Cty = liệt kê ngư�
 
 ---
 
-## C. GOLDEN NUMBERS (để đối soát report — toàn bộ dữ liệu, không lọc ngày)
+## ⚠️ CẬP NHẬT 2026-08-11 — golden numbers dưới đây (mục C) đã STALE
+
+Khi code Screen 1 và chạy test đối soát trên DB `CoShareTest`, phát hiện DB có vẻ đã bị
+**reset/reseed** so với ngày 2026-08-10 ghi trong file này — không phải chỉ tăng thêm dữ liệu:
+`Company Id=14` (Freetrend) giờ có `Code=null, Name=null, ShortName=null`, và tổng số đơn tăng
+từ 1.218 lên **142.400**. Toàn bộ mục **C** (golden numbers) và mục **B** (`Company` Id=14=Freetrend)
+dưới đây chỉ còn giá trị **tham khảo cách tính** (công thức, cách tránh fan-out ở mục C) — **không
+dùng để đối soát số** trên DB hiện tại. Golden numbers mới: `../../db/conventions.md` §5.1.
+
+## C. GOLDEN NUMBERS (để đối soát report — toàn bộ dữ liệu, không lọc ngày) — ⚠️ STALE, xem trên
 
 | Metric | Giá trị | Ghi chú |
 |---|---|---|
