@@ -18,7 +18,7 @@ Từ code `MerchantBillModel.cs::eMerchantBillStatus`:
 | 3 | **Cancel** — huỷ | **Huỷ** |
 
 > ⚠️ **Thực tế dữ liệu hiện tại: 100% đơn đang ở `StatusBill = 1` (1218/1218).** Chưa có đơn nào
-> Finished/Cancel. ⇒ cột "Thành công/Huỷ" ở Tab1 hiện sẽ = 0. Vẫn code theo enum 2/3 nhưng **báo
+> Finished/Cancel. ⇒ cột "Thành công/Huỷ" ở Screen 1 hiện sẽ = 0. Vẫn code theo enum 2/3 nhưng **báo
 > CoShare biết** dữ liệu chưa có trạng thái này (có thể quy trình chưa đóng đơn, hoặc dùng cột khác).
 
 ### 2. ✅ "Cty" = bảng `Company` (KHÔNG phải `Merchant`)
@@ -52,11 +52,18 @@ Trên **1 đơn**, hoa hồng chia cho **cả cây tuyến trên (upline) của 
   AND DescendantUserId = buyer` ❓ — chốt lại.
 - ⚠️ `AffiliatePartner.ReferredByUserId` **rỗng toàn bộ** — KHÔNG dùng cột này cho referrer.
 
-### 5. ✅ Tab1 "theo người" = theo **NGƯỜI BÁN (SellUser)**
+### 5. ✅ Drill-down "theo người" (Screen 2) = theo **NGƯỜI BÁN (SellUser)**
 Tên `c.Vinh / c.Sen / c.Thu` trong bản vẽ khớp seller thật của Freetrend: **Liêu Quang Vinh,
 Phan Thị Sen, Võ Thị Kiều Thu**. ⇒ drill-down 1 Cty = liệt kê người bán trong công ty đó.
 
-### 6. ⚠️ "Loại sp: vật lý / phi vật lý" — **CHƯA có cột phân loại rõ ràng** (cần CoShare chốt)
+### 6. ✅ "Loại sp: vật lý / phi vật lý" — CoShare CHỐT (2026-08-11): theo mã sản phẩm chứa `"ZALOOA"`
+> **Quy tắc chốt:** **Phi vật lý** = `MerchantProduct.Code ILIKE '%ZALOOA%'` (sản phẩm Zalo OA);
+> **Vật lý** = tất cả sản phẩm còn lại. Lọc ở mức đơn bằng `EXISTS` trên `MerchantBillDetail`
+> (xem `02-...Queries.sql` Screen 3). ✅ **Cơ chế nghiệp vụ: 1 đơn hoặc TOÀN vật lý, hoặc đúng 1 sp
+> phi vật lý** → không có đơn trộn, 2 nhánh filter loại trừ nhau, thống kê theo đơn sạch.
+> ⚠️ Nên verify golden 1 lần khi code (đếm đơn có mã ZALOOA).
+>
+> _Ghi chú điều tra ban đầu (trước khi có quyết định — giữ để tham khảo):_
 - `MerchantProduct.MaterialCommGroupId` **NULL 100%** (2238/2238) ⇒ không dùng được để phân loại.
 - Sản phẩm bán chủ yếu là **dịch vụ** "Zalo sức khỏe dành cho công ty Freetrend" (1191/~1250 dòng)
   = **phi vật lý**; còn lại là **hàng hoá** (nước giặt, quạt, tivi, mì, cà phê... nguồn `IZOLA`) = vật lý.
@@ -70,8 +77,9 @@ Phan Thị Sen, Võ Thị Kiều Thu**. ⇒ drill-down 1 Cty = liệt kê ngư�
 - Lọc **"Trạng thái đơn"** = `MerchantBill.StatusBill` (enum §1).
 - Ngoài ra có **trạng thái thanh toán hoa hồng** riêng: `MerchantBillCommission.CommPaymentStatusId`
   → `ConfigCommPaymentStatus`. Phân bố thật: `4=NOTREQUEST (Chưa yêu cầu)` chiếm 2576/2611,
-  `6=ORDERNOTCOMPLETED`=34, `5=RECONCILING`=1. ⇒ xác nhận cột "Trạng thái" hiển thị cái nào ❓
-  (đoán: trạng thái đơn cho lưới, trạng thái TT hoa hồng là cột phụ tuỳ chọn).
+  `6=ORDERNOTCOMPLETED`=34, `5=RECONCILING`=1.
+- ✅ **CoShare chốt (2026-08-11):** cột "Trạng thái" trên lưới = **`MerchantBill.StatusBill`**
+  (đúng bằng bộ lọc "Trạng thái đơn"). Trạng thái TT hoa hồng KHÔNG dùng cho cột này.
 
 ---
 
@@ -115,7 +123,7 @@ Phan Thị Sen, Võ Thị Kiều Thu**. ⇒ drill-down 1 Cty = liệt kê ngư�
 | Tổng doanh thu (SUM TotalMoney, DISTINCT bill) | **160.191.779** | tính trên đơn **duy nhất** |
 | Tổng dòng hoa hồng | **2.611** | avg 2,31 dòng/đơn, max 3 |
 | Tổng tiền hoa hồng | **13.621.482** | |
-| Hoa hồng theo cấp — L1 (Đại sứ) | **2.682.494** (1004 dòng) | dùng cho pie Tab1 |
+| Hoa hồng theo cấp — L1 (Đại sứ) | **2.682.494** (1004 dòng) | dùng cho pie Screen 2 |
 | Hoa hồng theo cấp — L2 (Đồng hành) | **10.936.588** (1063 dòng) | lớn nhất |
 | Hoa hồng theo cấp — L3 (Lan tỏa) | **2.400** (544 dòng) | gần như 0 |
 
