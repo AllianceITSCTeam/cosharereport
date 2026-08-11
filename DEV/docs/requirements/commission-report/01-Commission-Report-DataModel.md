@@ -11,8 +11,10 @@
 >   `MerchantBillCommission.SellUserId → UserLogin_Company_Mapping.CompanyId → Company`.
 > - **MSNV = `Staff.StaffCode` của KHÁCH MUA** (`MerchantBill.RenterGUID → UserLogin → Staff`).
 > - **Người giới thiệu = `SellUserId`** ; **Người mua = `RenterGUID`** ; **Người hưởng = `AffiliateUserId`**.
-> - **StatusBill**: 2=Thành công, 3=Huỷ (dữ liệu hiện toàn = 1).
-> - **"Loại sp" vật lý/phi vật lý**: chưa có cột chuẩn → tạm bỏ filter.
+> - **StatusBill**: 2=Thành công, 3=Huỷ (dữ liệu hiện toàn = 1). Cột "Trạng thái" = `StatusBill`.
+> - **"Loại sp" vật lý/phi vật lý**: phi vật lý = `MerchantProduct.Code` chứa `"ZALOOA"`; vật lý = còn lại.
+> - **Timezone**: DB lưu `timestamptz` UTC+00 → report lọc & hiển thị theo **UTC+7**.
+> - **Soft-delete**: loại `IsDeleted = true` (đã chốt).
 
 ---
 
@@ -58,7 +60,7 @@ Trạng thái hoa hồng:  ConfigCommPaymentStatus (Name)  ←  MerchantBillComm
 ## 2. Bảng lõi
 
 ### 2.1. `MerchantBillCommission` — **bảng trung tâm của báo cáo**
-1 dòng = 1 khoản hoa hồng cho **1 người hưởng** trên **1 đơn**. Đây là hạt (grain) của Tab 2/3.
+1 dòng = 1 khoản hoa hồng cho **1 người hưởng** trên **1 đơn**. Đây là hạt (grain) của Screen 3.
 
 | Cột | Kiểu | Ý nghĩa trong report |
 |---|---|---|
@@ -66,8 +68,8 @@ Trạng thái hoa hồng:  ConfigCommPaymentStatus (Name)  ←  MerchantBillComm
 | `MerchantBillId` | bigint (FK→MerchantBill.Id) | nối tới đơn |
 | `MerchantBillID_GUID` | uuid | (bản GUID của FK) |
 | `SellUserId` | bigint (FK→UserLogin.Id) | **người bán** |
-| `AffiliateUserId` | bigint (FK→UserLogin.Id) | **người hưởng hoa hồng** (cột 6 Tab2 / cột 6 Tab3) |
-| `AffiliateLevelId` | bigint (FK→ConfigAffiliateLevel.Id) | **cấp hệ hoa hồng** (lọc Tab2/3, biểu đồ Tab1) |
+| `AffiliateUserId` | bigint (FK→UserLogin.Id) | **người hưởng hoa hồng** (cột Người hưởng — Screen 3) |
+| `AffiliateLevelId` | bigint (FK→ConfigAffiliateLevel.Id) | **cấp hệ hoa hồng** (lọc Screen 3, biểu đồ Screen 2) |
 | `AffiliateLevel` | int | số cấp (denormalized) |
 | `MerchantBillTotalMoney` | numeric | tổng tiền đơn (denormalized tại thời điểm tính) |
 | `MerchantBillDate` | timestamptz | ngày đơn (denormalized) — tiện lọc theo ngày |
@@ -87,7 +89,7 @@ Trạng thái hoa hồng:  ConfigCommPaymentStatus (Name)  ←  MerchantBillComm
 | Cột | Kiểu | Ý nghĩa trong report |
 |---|---|---|
 | `Id` | bigint (PK) | khoá |
-| `Code` / `OrderNumber` / `BillNumber` | varchar | **Mã đơn** (chốt dùng cột nào ❓, đoán `OrderNumber` hiển thị) |
+| `OrderNumber` | varchar | **Mã đơn** (đã chốt dùng cột này; `Code`/`BillNumber` không dùng) |
 | `BillDate` | timestamptz | **Ngày đặt hàng** (lọc theo khoảng) |
 | `TotalMoney` | numeric | **Tổng tiền đơn** / Doanh thu |
 | `StatusBill` | int | **Trạng thái đơn** (Thành công/Huỷ ❓ — cần bảng ánh xạ giá trị) |
@@ -98,15 +100,17 @@ Trạng thái hoa hồng:  ConfigCommPaymentStatus (Name)  ←  MerchantBillComm
 | `RenterReceiverPhone` | varchar | SĐT người nhận |
 | `IsDeleted` | bool | soft-delete |
 
-### 2.3. `MerchantBillDetail` — Line-item (Tab 3 cột "Chi tiết đơn hàng")
+### 2.3. `MerchantBillDetail` — Line-item (Screen 3 expander "Chi tiết đơn hàng")
 | Cột | Kiểu | Ý nghĩa |
 |---|---|---|
 | `MerchantBillId` | bigint (FK) | thuộc đơn nào |
-| `ProductId` | bigint (FK→MerchantProduct.Id) | sản phẩm |
-| `ProductName` | varchar | tên sản phẩm |
-| `Quantity` | numeric | số lượng |
-| `TotalMoney` | numeric | thành tiền dòng |
-| `MaterialCommisionTiers` | varchar | cấu hình bậc hoa hồng vật lý (JSON) — liên quan "Loại sp" ❓ |
+| `ProductId` | bigint (FK→MerchantProduct.Id) | sản phẩm (join lấy `Code` để phân loại vật lý/phi vật lý) |
+| `ProductName` | varchar | **Mặt hàng** (tên sản phẩm) — cột expander |
+| `Quantity` | numeric | **SL** (số lượng) — cột expander |
+| `ProductPrice` | numeric | **Đơn giá** (giá 1 đơn vị) — cột expander |
+| `TotalMoney` | numeric | **Thành tiền** dòng — cột expander |
+| `Code` | varchar | mã dòng (có thể = mã sản phẩm, denormalized) |
+| `MaterialCommisionTiers` | varchar | cấu hình bậc hoa hồng vật lý (JSON) — KHÔNG dùng để phân loại "Loại sp" |
 
 ### 2.4. `UserLogin` — Người (giới thiệu / hưởng hoa hồng / bán / mua)
 | Cột | Ý nghĩa |
@@ -126,11 +130,11 @@ Trạng thái hoa hồng:  ConfigCommPaymentStatus (Name)  ←  MerchantBillComm
 ### 2.6. Bảng cấu hình / phân loại
 | Bảng | Cột chính | Dùng cho |
 |---|---|---|
-| `ConfigAffiliateLevel` | `Level`, `Name`, `NameInCommision` | **Cấp hệ hoa hồng** (lọc + nhãn biểu đồ Tab1) |
+| `ConfigAffiliateLevel` | `Level`, `Name`, `NameInCommision` | **Cấp hệ hoa hồng** (lọc Screen 3 + nhãn biểu đồ Screen 2) |
 | `ConfigCommPaymentStatus` | `Name`, `DisplayName` | Trạng thái **thanh toán hoa hồng** ❓ |
 | `Merchant` | `ID_GUID`, `Name`, `Code` | **Cty** (ứng viên 1) |
 | `Company` | `Id`, `Name`, `Code`, `HiddenAffiliateIncomeLevels` | **Cty** (ứng viên 2) ❓ |
-| `MerchantProduct` | `MaterialCommGroupId` | **Loại sp** vật lý/phi vật lý ❓ |
+| `MerchantProduct` | `Code`, `Name` | **Loại sp**: `Code` chứa `"ZALOOA"` = phi vật lý; còn lại = vật lý |
 | `ConfigMaterialCommGroup` | `Name` | nhóm hoa hồng **vật lý** (material) |
 | `ConfigMaterialCommisionTier` | `MaterialCommGroupId`, `AffiliateLevelId`, `CommPercent` | bậc % hoa hồng theo nhóm vật lý × cấp |
 | `ConfigGoodsType` | `Name`, `Code` | loại hàng hoá (ứng viên khác cho "Loại sp") ❓ |
@@ -141,7 +145,7 @@ Trạng thái hoa hồng:  ConfigCommPaymentStatus (Name)  ←  MerchantBillComm
 
 ## 3. Ánh xạ CỘT REPORT → BẢNG.CỘT (bảng tra nhanh)
 
-### Tab 1 — Tổng quan (gom theo Cty)
+### Screen 1 — Hoa hồng tổng quan (gom theo Cty)
 | Cột report | Nguồn | Công thức |
 |---|---|---|
 | Cty | `Merchant.Name` ❓ | GROUP BY Merchant |
@@ -151,34 +155,36 @@ Trạng thái hoa hồng:  ConfigCommPaymentStatus (Name)  ←  MerchantBillComm
 | Huỷ | `MerchantBill.StatusBill` | `COUNT FILTER (StatusBill = :CANCELLED❓)` |
 | Hoa hồng | `MerchantBillCommission.CommisionAmount` | `SUM` (subquery riêng) |
 
-### Tab 1 — drill-down theo người (đã chọn 1 Cty)
+### Screen 2 — Hoa hồng theo công ty (drill-down, bắt buộc chọn 1 Cty)
 | Cột | Nguồn | Ghi chú |
 |---|---|---|
-| Tên | `UserLogin.DisplayName` qua `AffiliateUserId` | GROUP BY người hưởng |
-| Tổng doanh thu / Tổng đơn / Thành công / Huỷ | như trên | quy cho người thế nào ❓ |
-| Hoa hồng | `SUM(CommisionAmount)` theo `AffiliateUserId` | |
+| Tên | `UserLogin.DisplayName` qua `SellUserId` (thành viên/người bán của Cty) | GROUP BY người bán; chưa chọn Cty → không query |
+| Tổng doanh thu | `SUM(MerchantBill.TotalMoney)` các đơn của thành viên (mỗi đơn 1 lần) | |
+| Tổng đơn | `COUNT(DISTINCT MerchantBillId)` — số đơn phát sinh của thành viên | |
+| Thành công / Huỷ | `COUNT DISTINCT ... FILTER (StatusBill = 2 / 3)` | |
+| Hoa hồng | `SUM(CommisionAmount)` theo người bán (hoa hồng tạo ra) ❓ tạo ra vs nhận | |
 
-### Tab 2 & Tab 3 — chi tiết (grain = 1 dòng `MerchantBillCommission`)
+### Screen 3 — Báo cáo đơn hàng (grain = 1 dòng `MerchantBillCommission`)
 | Cột report | Nguồn |
 |---|---|
-| Mã đơn | `MerchantBill.OrderNumber` / `Code` ❓ |
-| Ngày đặt hàng | `MerchantBill.BillDate` |
-| KH đặt / Người mua hàng | `MerchantBill.RenterReceiverName` (hoặc `UserLogin` qua `RenterGUID` ❓) |
-| MSNV | `Staff.StaffCode` qua người ❓ (hưởng/bán?) |
-| Người giới thiệu | `UserLogin.DisplayName` qua `AffiliatePartner.ReferredByUserId` ❓ |
+| Mã đơn | `MerchantBill.OrderNumber` (đã chốt) |
+| Ngày đặt hàng | `MerchantBill.BillDate` (hiển thị UTC+7) |
+| Người mua hàng | `UserLogin.DisplayName` qua `RenterGUID` (fallback `RenterReceiverName`) |
+| MSNV | `Staff.StaffCode` của **khách mua** (`RenterGUID → UserLogin → Staff`) |
+| Người giới thiệu | `UserLogin.DisplayName` qua `MerchantBillCommission.SellUserId` |
 | Người hưởng hoa hồng | `UserLogin.DisplayName` qua `MerchantBillCommission.AffiliateUserId` |
-| Chi tiết đơn hàng (Tab3) | danh sách `MerchantBillDetail.ProductName × Quantity` |
+| Chi tiết đơn hàng (expander) | `MerchantBillDetail`: `ProductName` × `Quantity` × `ProductPrice` × `TotalMoney` |
 | Tổng tiền đơn | `MerchantBill.TotalMoney` (hoặc `MerchantBillTotalMoney`) |
 | Tổng hoa hồng | `MerchantBillCommission.CommisionAmount` |
-| Trạng thái | `MerchantBill.StatusBill` ❓ (hoặc `ConfigCommPaymentStatus.Name`) |
+| Trạng thái | `MerchantBill.StatusBill` (= bộ lọc "Trạng thái đơn") |
 | Cấp hệ hoa hồng (lọc) | `MerchantBillCommission.AffiliateLevelId` → `ConfigAffiliateLevel` |
-| Loại sp (lọc) | `MerchantProduct.MaterialCommGroupId` (vật lý) vs null (phi vật lý) ❓ |
+| Loại sp (lọc) | `EXISTS MerchantBillDetail → MerchantProduct.Code ILIKE '%ZALOOA%'` = phi vật lý; ngược lại = vật lý |
 
 ---
 
 ## 4. Chỉ mục (index) nên có để report chạy nhanh
 > Report là **readonly**; nếu cần index CoShare phải tự tạo (xem `conventions.md`). Đề xuất:
-- `MerchantBill (BillDate, MerchantGUID, StatusBill)` — lọc chính Tab1/2/3.
+- `MerchantBill (BillDate, MerchantGUID, StatusBill)` — lọc chính cả 3 screen.
 - `MerchantBillCommission (MerchantBillId)` — đã có FK; kiểm tra có index.
 - `MerchantBillCommission (AffiliateUserId, AffiliateLevelId)` — lọc theo người/cấp.
 - `MerchantBillDetail (MerchantBillId)` — đã có FK `FK_MerchantBillDetail_BillId`.
@@ -186,5 +192,7 @@ Trạng thái hoa hồng:  ConfigCommPaymentStatus (Name)  ←  MerchantBillComm
 ---
 
 ## 5. Việc cần chốt (tóm tắt, xem đầy đủ §4 file yêu cầu)
-`StatusBill` enum · Cty=Merchant/Company · MSNV của ai · Loại sp mapping · cột Trạng thái ·
-Người giới thiệu định nghĩa · timezone · soft-delete.
+**Đã chốt:** `StatusBill` enum · Cty=`Company` · MSNV=khách mua · Loại sp=`Code` chứa `"ZALOOA"`
+(không có đơn trộn) · cột Trạng thái=`StatusBill` · Mã đơn=`OrderNumber` · Người giới thiệu=`SellUserId` ·
+timezone=UTC+7 · soft-delete=loại `IsDeleted` · Screen 2 doanh thu/đơn = tổng tiền/số đơn của thành viên.
+**Còn ❓:** hoa hồng Screen 2 quy theo *tạo ra* (`SellUserId`) hay *nhận* (`AffiliateUserId`).

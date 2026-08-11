@@ -5,21 +5,31 @@
 -- Postgres schema "dbo"; identifier PascalCase phải bọc "...".
 -- READONLY: chỉ SELECT. Cần view/function → viết vào sql-scripts/, giao HUMAN chạy.
 --
--- ĐÃ CHỐT (04-Findings):
+-- MÔ HÌNH 3 MÀN HÌNH (screen) — xem 00-...Requirement.md:
+--   • SCREEN 1 "Hoa hồng tổng quan"  → query "SCREEN 1" bên dưới (gom theo Cty)
+--   • SCREEN 2 "Hoa hồng theo công ty" → query "SCREEN 2A/2B" (drill-down + pie); BẮT BUỘC :companyId
+--   • SCREEN 3 "Báo cáo đơn hàng"     → query "SCREEN 3" (chi tiết + summary + expander line-item)
+--
+-- ĐÃ CHỐT (04-Findings + CoShare trả lời 2026-08-11):
 --   • "Cty" = Company, nối qua SellUserId → UserLogin_Company_Mapping.CompanyId
 --   • StatusBill: 2=Thành công(Finished), 3=Huỷ(Cancel), 1=Approve, 0=New
 --       (⚠ dữ liệu hiện 100% = 1)
 --   • MSNV = Staff.StaffCode của KHÁCH MUA (RenterGUID → UserLogin → Staff)
 --   • Người mua = RenterGUID→UserLogin ; Người giới thiệu = SellUserId→UserLogin ;
 --     Người hưởng hoa hồng = AffiliateUserId→UserLogin
---   • "Loại sp" vật lý/phi vật lý: CHƯA có cột chuẩn → filter tạm DISABLED ❓
+--   • Cột "Trạng thái" = MerchantBill.StatusBill (đúng bằng bộ lọc "Trạng thái đơn")
+--   • "Loại sp": PHI VẬT LÝ = MerchantProduct.Code ILIKE '%ZALOOA%' (Zalo OA); VẬT LÝ = còn lại
+--   • Soft-delete: loại IsDeleted = true ở mọi bảng
 --
--- PARAM chung:  :from, :to (UTC theo tz nghiệp vụ), :companyId (NULL=tất cả)
+-- TIMEZONE: cột thời gian là timestamptz lưu UTC+00; nghiệp vụ theo UTC+7 (Asia/Ho_Chi_Minh).
+--   :from/:to phải là mốc UTC đã quy đổi từ ngày người dùng chọn ở UTC+7 (dùng toUtcDateRange).
+--
+-- PARAM chung:  :from, :to (UTC), :companyId (NULL=tất cả; SCREEN 2 bắt buộc)
 -- =============================================================================
 
 
 -- =============================================================================
--- TAB 1A — TỔNG QUAN, GOM THEO CTY (Company)
+-- SCREEN 1 — HOA HỒNG TỔNG QUAN, GOM THEO CTY (Company)
 -- =============================================================================
 -- Tránh fan-out: xác định company của MỖI ĐƠN đúng 1 lần (bill_company),
 -- rồi mới SUM doanh thu trên đơn duy nhất; hoa hồng tính ở CTE riêng theo đơn.
@@ -61,9 +71,13 @@ ORDER BY total_commission DESC;
 
 
 -- =============================================================================
--- TAB 1B — DRILL-DOWN THEO NGƯỜI BÁN (SellUser) khi ĐÃ chọn 1 Cty
+-- SCREEN 2A — HOA HỒNG THEO CÔNG TY: DRILL-DOWN THEO NGƯỜI BÁN (SellUser)
 -- =============================================================================
--- Grain = người bán. Doanh thu/đơn = đơn người đó BÁN; Hoa hồng có 2 cách hiểu:
+-- BẮT BUỘC :companyId (màn hình chưa chọn công ty → KHÔNG chạy query, hiện bảng trống).
+-- Grain = thành viên/người bán của Cty (SellUser). CoShare chốt:
+--   • Tổng doanh thu = SUM(TotalMoney) các đơn của thành viên (mỗi đơn 1 lần, tránh fan-out)
+--   • Tổng đơn      = COUNT(DISTINCT MerchantBillId) — số đơn phát sinh của thành viên
+-- Hoa hồng còn 2 cách hiểu (chốt sau):
 --   (a) hoa hồng người đó tạo ra khi bán (theo SellUserId) — dùng bên dưới, hay
 --   (b) hoa hồng người đó NHẬN (theo AffiliateUserId) ❓ — chốt với CoShare.
 SELECT
@@ -93,8 +107,9 @@ ORDER BY total_commission DESC;
 
 
 -- =============================================================================
--- TAB 1C — BIỂU ĐỒ: HOA HỒNG THEO CẤP (pie theo AffiliateLevel)
+-- SCREEN 2B — BIỂU ĐỒ: HOA HỒNG THEO CẤP (pie theo AffiliateLevel), trong 1 Cty
 -- =============================================================================
+-- Thuộc Screen 2 (theo công ty). :companyId bắt buộc như Screen 2A.
 SELECT
     c."AffiliateLevel"                              AS level_no,
     COALESCE(lvl."NameInCommision", lvl."Name",
@@ -115,10 +130,11 @@ ORDER BY level_no;
 
 
 -- =============================================================================
--- TAB 2 & TAB 3 — CHI TIẾT (grain = 1 dòng MerchantBillCommission)
+-- SCREEN 3 — BÁO CÁO ĐƠN HÀNG: CHI TIẾT (grain = 1 dòng MerchantBillCommission)
 -- =============================================================================
 -- PARAM thêm (NULL = bỏ qua):
 --   :affiliateLevel(int)  :affiliateUserId  :msnv  :statusBill  :keyword
+--   :productType ('NON_PHYSICAL' | 'PHYSICAL' | NULL)  ← lọc theo mã sp chứa 'ZALOOA'
 SELECT
     b."OrderNumber"                                  AS order_code,        -- Mã đơn
     b."BillDate"                                     AS order_date,        -- Ngày đặt hàng
@@ -150,18 +166,34 @@ WHERE c."IsDeleted" = false
   AND (:affiliateUserId IS NULL OR c."AffiliateUserId"  = :affiliateUserId)
   AND (:statusBill      IS NULL OR b."StatusBill"       = :statusBill)
   AND (:msnv            IS NULL OR buyer_staff."StaffCode" = :msnv)
+  -- Loại sp: PHI VẬT LÝ = đơn CÓ mặt hàng Zalo OA (Code chứa 'ZALOOA'); VẬT LÝ = đơn KHÔNG có.
+  -- Cơ chế nghiệp vụ: 1 đơn hoặc toàn vật lý, hoặc đúng 1 sp phi vật lý ⇒ 2 nhánh loại trừ nhau (không đơn trộn).
+  AND (:productType IS NULL
+       OR (:productType = 'NON_PHYSICAL' AND EXISTS (
+             SELECT 1 FROM dbo."MerchantBillDetail" d
+             JOIN dbo."MerchantProduct" p ON p."Id" = d."ProductId"
+             WHERE d."MerchantBillId" = b."Id" AND d."IsDeleted" = false
+               AND p."Code" ILIKE '%ZALOOA%'))
+       OR (:productType = 'PHYSICAL' AND EXISTS (
+             SELECT 1 FROM dbo."MerchantBillDetail" d
+             LEFT JOIN dbo."MerchantProduct" p ON p."Id" = d."ProductId"
+             WHERE d."MerchantBillId" = b."Id" AND d."IsDeleted" = false
+               AND (p."Code" IS NULL OR p."Code" NOT ILIKE '%ZALOOA%'))))
   AND (:keyword IS NULL OR
        b."OrderNumber"  ILIKE '%' || :keyword || '%' OR
        buyer."DisplayName" ILIKE '%' || :keyword || '%' OR
        ben."DisplayName"   ILIKE '%' || :keyword || '%')
 ORDER BY b."BillDate" DESC, b."Id", c."AffiliateLevel";
--- ❓ Filter "Loại sp" vật lý/phi vật lý: CHƯA có cột chuẩn (MaterialCommGroupId NULL 100%).
---    Để disabled tới khi CoShare chốt cách phân loại.
+-- Phân loại dựa MerchantProduct.Code ILIKE '%ZALOOA%' (nên verify golden 1 lần khi code).
+-- Vì không có đơn trộn, PHYSICAL ⇔ NOT EXISTS(ZALOOA); nhánh EXISTS non-ZALOOA cho cùng kết quả.
 
 
 -- =============================================================================
--- TAB 2/3 — DÒNG SUMMARY (đầu bảng) — cùng bộ lọc như trên
+-- SCREEN 3 — DÒNG SUMMARY (đầu bảng)
 -- =============================================================================
+-- ⚠️ Để summary khớp lưới: CTE detail dưới đây phải áp CÙNG bộ lọc như query chi tiết
+--    (:affiliateLevel, :affiliateUserId, :msnv, :statusBill, :productType, :keyword) —
+--    ví dụ chỉ minh hoạ lọc theo công ty; khi code bổ sung đủ các filter còn lại.
 WITH detail AS (
     SELECT DISTINCT c."Id" AS comm_id, c."MerchantBillId", c."CommisionAmount", b."TotalMoney"
     FROM dbo."MerchantBillCommission" c
@@ -183,19 +215,21 @@ FROM detail;
 
 
 -- =============================================================================
--- TAB 3 — CHI TIẾT MẶT HÀNG CỦA 1 ĐƠN (cột "Chi tiết đơn hàng")
+-- SCREEN 3 — CHI TIẾT MẶT HÀNG CỦA 1 ĐƠN (expander "▸ Chi tiết đơn hàng")
 -- =============================================================================
-SELECT d."ProductName", d."Quantity", d."TotalMoney"
+-- Gọi khi user bung mũi tên ▸ ở 1 dòng đơn. Cột: Mặt hàng / SL / Đơn giá / Thành tiền (xem §3.3).
+SELECT
+    d."ProductName"  AS item_name,     -- Mặt hàng
+    d."Quantity"     AS quantity,      -- SL
+    d."ProductPrice" AS unit_price,    -- Đơn giá
+    d."TotalMoney"   AS line_total     -- Thành tiền
 FROM dbo."MerchantBillDetail" d
 WHERE d."MerchantBillId" = :billId AND d."IsDeleted" = false
 ORDER BY d."OrderNo";
--- Gộp inline 1 ô:
--- SELECT string_agg(d."ProductName" || ' x' || d."Quantity", ', ' ORDER BY d."OrderNo")
--- FROM dbo."MerchantBillDetail" d WHERE d."MerchantBillId" = :billId AND d."IsDeleted" = false;
 
 
 -- =============================================================================
--- (GỢI Ý) Dùng view có sẵn làm nền cho Tab 2/3
+-- (GỢI Ý) Dùng view có sẵn làm nền cho SCREEN 3 (chi tiết)
 -- =============================================================================
 -- dbo."ViewMerchantBill_BillComm" đã có: BillNumber, MerchantBillDate, MerchantBillTotalMoney,
 --   SellUserId/Username/DisplayName, StatusBill, AffiliateUserId, AffiliateLevel(Id),
