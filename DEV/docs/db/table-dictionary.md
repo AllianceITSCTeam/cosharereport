@@ -30,6 +30,7 @@ Cách điền: mỗi khi làm 1 report và xác định được bảng nguồn,
 | `MerchantBillDetail` | Commission Report (mặt hàng) | ✅ |
 | `UserLogin_Company_Mapping` | Commission Report (map người→Cty) | ✅ |
 | `Company` / `Staff` / `ConfigAffiliateLevel` / `ConfigCommPaymentStatus` | Commission Report | ✅ |
+| `MerchantBill`, `MerchantBillCommission`, `Company`, `UserLogin_Company_Mapping` | Screen 1 — Hoa hồng tổng quan (`reports.service.ts::commissionOverview`) | ✅ đã code + đối soát trên DB thật (2026-08-11), xem `../reports/commission-overview.md` |
 
 ## Commission Report — bảng chi tiết
 Tài liệu đầy đủ (ER, cột, ánh xạ, SQL đã kiểm chứng, golden numbers):
