@@ -6,6 +6,8 @@ import path from 'path';
 export default defineConfig(({ command }) => ({
   // Load .env from monorepo root (DEV/) so VITE_* vars defined there are picked up
   envDir: path.resolve(__dirname, '../..'),
+  // Shared static assets (logo, favicon) live at the monorepo root's public/ dir
+  publicDir: path.resolve(__dirname, '../../public'),
   define: {
     __BUILD_TIME__: JSON.stringify(
       command === 'build' ? new Date().toISOString() : 'dev',

@@ -94,6 +94,59 @@ Test đối soát tương ứng: `apps/api/src/reports/reports.service.recon.spe
   chạy được **~850ms** cho toàn bộ dữ liệu không lọc ngày. Nên áp dụng cùng cách cho Screen
   2/3 khi tới lượt, thay vì copy nguyên `LIMIT 1` từ file SQL nháp.
 
+### 5.3. Golden numbers — Screen 2 "Hoa hồng theo công ty" (refresh 2026-08-12)
+
+Đối soát trên `companyId=12` (**AllianceITSC** — công ty có nhiều dòng hoa hồng nhất tại thời
+điểm kiểm tra: 102.245 dòng / 24 seller; `Freetrend Id=14` không dùng được nữa, xem §5.1), toàn kỳ
+`[2000-01-01, 2030-01-01]`. Test đối soát: `apps/api/src/reports/reports.service.commission-by-company.recon.spec.ts`
+(opt-in `RECON_DB=1`).
+
+| Metric | Giá trị | Ghi chú |
+|---|---|---|
+| Số seller (người bán) thuộc companyId=12 | **24** | |
+| Tổng đơn (theo người bán, `by-person`) | **101.825** | |
+| Tổng doanh thu (theo người bán, `by-person`) | ⚠️ **SAI, xem dưới** | `2.526.988.796.800` ghi ngày 2026-08-12 SAI — tự đối soát với chính code lỗi, xem note 2026-08-13 |
+| Tổng hoa hồng (theo người bán — TẠO RA, `SellUserId`) | **74.386.819.469** | |
+| Hoa hồng theo cấp — L1 (Đại sứ) | **512.770.082** | |
+| Hoa hồng theo cấp — L2 (Đồng hành) | **73.863.738.285** | lớn nhất |
+| Hoa hồng theo cấp — L3 (Lan tỏa) | **10.311.102** | |
+| Tổng hoa hồng (theo cấp, `by-level`) | **74.386.819.469** | phải khớp hệt tổng theo người — bất biến đối soát chéo |
+
+**Quyết định khi code Screen 2 (2026-08-12):**
+
+- **"Hoa hồng" ở Screen 2 = TẠO RA** (`SellUserId`), không phải NHẬN (`AffiliateUserId`) — user
+  chốt trực tiếp, xem `docs/reports/commission-by-company.md §1`. Vẫn cần CoShare xác nhận lại.
+- **Bug bắt được nhờ recon test:** `UserLogin_Company_Mapping.CompanyId` là `bigint`, nhưng
+  `companyId` từ query string luôn là `string` — bind thẳng gây lỗi Postgres
+  `operator does not exist: bigint = text`. Không unit test nào (mock Prisma) bắt được lỗi này vì
+  mock không kiểm tra kiểu dữ liệu thật; chỉ recon test chạy trên DB thật mới lộ ra. Sửa bằng
+  `parseCompanyId()` (validate `^\d+$` rồi `BigInt(...)`) trong `reports.service.ts`, dùng chung
+  cho `commissionByPerson`/`commissionByLevel`. **Áp dụng cùng cách cho Screen 3** (mọi query có
+  `companyId`/`affiliateLevelId`/`affiliateUserId` dạng bigint) khi tới lượt.
+- **Seller không map được company:** dùng INNER JOIN (không LEFT JOIN như Screen 1) — vì Screen 2
+  luôn lọc đúng 1 company nên seller ngoài company đó không nên xuất hiện; khác Screen 1 (không có
+  filter company, phải giữ dòng null-company để không mất tổng).
+
+**⚠️ 2026-08-13 — Bug doanh thu bị nhân đôi/ba (multi-level fan-out), phát hiện qua QA thủ công:**
+
+- Người dùng đối chiếu tay Screen 1 (Doanh thu công ty) vs Screen 2 (tổng doanh thu cộng dồn theo
+  người) cho CÙNG 1 company/khoảng ngày và thấy Screen 2 cao gần gấp đôi. Root cause: 1 seller có
+  thể có NHIỀU dòng `MerchantBillCommission` cho CÙNG 1 đơn (1 dòng/cấp hoa hồng L1+L2+L3 trả cho
+  cùng `SellUserId`) — bản cũ dùng `LATERAL MAX(TotalMoney)` rồi SUM theo từng DÒNG hoa hồng, nên
+  đơn đó bị cộng doanh thu N lần (N = số dòng/cấp). Fix: tách CTE `seller_bills` = DISTINCT
+  (seller_id, bill_id) TRƯỚC khi cộng doanh thu; xem chi tiết ở comment
+  `ReportsService.commissionByPerson()` và `docs/reports/commission-by-company.md` §Ghi chú.
+- **Golden number `2.526.988.796.800` ở bảng trên (ghi 2026-08-12) là SAI** — nó được tính bằng
+  cách gọi lại chính `commissionByPerson()` lúc còn lỗi (qua script throwaway), nên recon test chỉ
+  tự đối soát với chính nó chứ không phải nguồn độc lập. Đã thay test đó bằng bất biến đối soát
+  chéo với Screen 1 (`commissionOverview`) thay vì số cứng — xem
+  `reports.service.commission-by-company.recon.spec.ts`. **Số vàng doanh thu đúng cho companyId=12
+  chưa được ghi lại** — cần HUMAN có quyền truy cập DB thật chạy lại
+  `RECON_DB=1 npx jest reports.service.commission-by-company.recon.spec.ts` để lấy số mới và điền
+  vào bảng trên.
+- Bài học quy trình: golden number phải đến từ nguồn ĐỘC LẬP với code đang test — không được tính
+  bằng cách gọi lại chính hàm đang kiểm chứng, kể cả khi có vẻ "tiện" lúc viết recon test lần đầu.
+
 ---
 
 > **Nguyên tắc cứng — connection READONLY, chỉ đọc.** Không ghi bất cứ gì vào DB (không
