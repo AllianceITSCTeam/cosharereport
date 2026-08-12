@@ -29,6 +29,11 @@ export default defineConfig(({ command }) => ({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      // Future auto-SSO entry point (GET /sso?token=...) — see docs/requirements/sso-integration/
+      '/sso': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
       '/uploads': {
         target: 'http://localhost:3000',
         changeOrigin: true,

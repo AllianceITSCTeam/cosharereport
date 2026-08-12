@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { AuthService, SESSION_COOKIE_NAME } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { LoginDto } from './dto/login.dto';
 import { SessionPayload } from './auth.types';
+
+const SESSION_COOKIE_MAX_AGE = 8 * 60 * 60 * 1000; // 8h, matches issueSessionToken()
 
 @Controller()
 export class AuthController {
@@ -48,6 +52,28 @@ export class AuthController {
 
     const redirectTo = this.configService.get<string>('SSO_REDIRECT_PATH') ?? '/';
     res.redirect(redirectTo);
+  }
+
+  /**
+   * BFF login: user submits their CoShare username/password from our login form.
+   * We proxy to CoShare's oauth2/token (password grant) server-side, then mint our own
+   * session cookie. Rate-limited via the strict `sso` throttle bucket (10/min).
+   */
+  @Throttle({ sso: { limit: 10, ttl: 60000 } })
+  @Post('auth/login')
+  async login(@Body() dto: LoginDto, @Res() res: Response): Promise<void> {
+    const user = await this.authService.loginWithPassword(dto.username, dto.password);
+    const sessionToken = this.authService.issueSessionToken(user);
+
+    res.cookie(SESSION_COOKIE_NAME, sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: SESSION_COOKIE_MAX_AGE,
+    });
+
+    // Mimic the global { success, data } envelope (bypassed because we use @Res()).
+    res.status(200).json({ success: true, data: user });
   }
 
   @UseGuards(JwtAuthGuard)

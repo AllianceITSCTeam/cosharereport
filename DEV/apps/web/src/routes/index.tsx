@@ -7,9 +7,14 @@ import { CommissionOverviewPage } from '@/pages/CommissionOverviewPage';
 import { CommissionByCompanyPage } from '@/pages/CommissionByCompanyPage';
 import { CommissionOrdersPage } from '@/pages/CommissionOrdersPage';
 import { AuthErrorPage } from '@/pages/AuthErrorPage';
+import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/MiscPages';
 
 const router = createBrowserRouter([
+  {
+    path: '/login',
+    element: <LoginPage />,
+  },
   {
     path: '/auth-error',
     element: <AuthErrorPage />,

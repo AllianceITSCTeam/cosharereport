@@ -11,7 +11,10 @@ A standalone reporting site for the CoShare project. Reused technical scaffold f
 ## Architecture
 
 - `apps/api` — NestJS 10 backend.
-  - `auth/` — verifies the CoShare-issued JWT (`COSHARE_JWT_SECRET`, HS256 assumed) at `GET /sso?token=...`, then mints this app's own session JWT (`SESSION_JWT_SECRET`) stored in an httpOnly cookie. Invalid/missing token redirects to `/auth-error`.
+  - `auth/` — two ways in, both ending in this app's own session JWT (`SESSION_JWT_SECRET`) in an httpOnly cookie:
+    - `POST /api/auth/login` (BFF login) — takes a CoShare username/password, proxies them to CoShare's OAuth2 password-grant endpoint (`COSHARE_OAUTH_TOKEN_URL`) server-side, decodes the returned token, mints our session cookie. This is the working path today (login form at `/login`). Rate-limited via the `sso` throttle bucket.
+    - `GET /sso?token=...` (auto-SSO, future) — verifies a CoShare-issued JWT (`COSHARE_JWT_SECRET`, HS256 assumed) and mints the same cookie. **Blocked on CoShare** (we can't verify their signature yet) — what they must implement is in `docs/requirements/sso-integration/`. Invalid/missing token redirects to `/auth-error`.
+    - `DISABLE_AUTH=true` bypasses all of the above with a dev user — **dev only, must be `false`/unset in production** or every report is public.
   - `prisma/prisma.service.ts` — Prisma client with a middleware that blocks all write actions (`create`/`update`/`delete`/`upsert`/`executeRaw*`) at the application layer, defense-in-depth on top of the DB-level readonly role.
   - `reports/` — one Prisma-backed readonly endpoint per report. `reports.controller.ts`/`reports.service.ts` currently only has a `ping()` health-check placeholder — see "Adding a report" below.
   - Global response envelope (`ResponseInterceptor`) wraps all responses as `{ success, data, durationMs }`; `HttpExceptionFilter` wraps errors as `{ success: false, message, code?, errors? }` and serves `index.html` for non-API 404s (SPA fallback).
