@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { initAuth } from '@/lib/auth-init';
 
@@ -28,15 +29,7 @@ export function ProtectedRoute({ children }: IProtectedRouteProps) {
   }
 
   if (!user) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="flex flex-col items-center gap-3 max-w-md text-center px-6">
-          <p className="text-sm text-muted-foreground">
-            You're not signed in. Please open this report from the link provided in CoShare.
-          </p>
-        </div>
-      </div>
-    );
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
