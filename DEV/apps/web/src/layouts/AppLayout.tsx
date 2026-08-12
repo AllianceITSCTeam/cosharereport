@@ -17,8 +17,8 @@ export function AppLayout() {
     <div className="flex min-h-screen bg-background">
       <aside className="w-56 shrink-0 border-r bg-card flex flex-col">
         <div className="px-4 py-4 border-b">
-          <Link to="/" className="font-semibold text-foreground">
-            CoShare Report
+          <Link to="/" className="flex items-center">
+            <img src="/images/logo/coshare-logo.png" alt="CoShare" className="h-8 object-contain" />
           </Link>
         </div>
         <nav className="flex-1 px-2 py-4 space-y-1">
