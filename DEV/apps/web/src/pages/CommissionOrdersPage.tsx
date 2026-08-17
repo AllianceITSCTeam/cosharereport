@@ -253,106 +253,121 @@ export function CommissionOrdersPage() {
           <label htmlFor="company-select" className="text-xs font-medium text-muted-foreground">
             Công ty
           </label>
-          <select
-            id="company-select"
-            value={companyId}
-            onChange={(e) => {
-              setFilters((prev) => ({ ...prev, companyId: e.target.value }));
-              resetToFirstPage();
-            }}
-            className="h-11 min-w-[200px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
-          >
-            <option value="">— Tất cả —</option>
-            {companyOptions.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name ?? c.id}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="company-select"
+              value={companyId}
+              onChange={(e) => {
+                setFilters((prev) => ({ ...prev, companyId: e.target.value }));
+                resetToFirstPage();
+              }}
+              className="h-11 min-w-[200px] w-full appearance-none rounded-xl border border-border/70 bg-background pl-3 pr-9 text-sm shadow-sm"
+            >
+              <option value="">— Tất cả —</option>
+              {companyOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name ?? c.id}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="level-select" className="text-xs font-medium text-muted-foreground">
             Cấp hệ hoa hồng
           </label>
-          <select
-            id="level-select"
-            value={affiliateLevelId}
-            onChange={(e) => {
-              setFilters((prev) => ({ ...prev, affiliateLevelId: e.target.value }));
-              resetToFirstPage();
-            }}
-            className="h-11 min-w-[180px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
-          >
-            <option value="">— Tất cả —</option>
-            {levelOptions.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name ?? `Cấp ${l.levelNo}`}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="level-select"
+              value={affiliateLevelId}
+              onChange={(e) => {
+                setFilters((prev) => ({ ...prev, affiliateLevelId: e.target.value }));
+                resetToFirstPage();
+              }}
+              className="h-11 min-w-[180px] w-full appearance-none rounded-xl border border-border/70 bg-background pl-3 pr-9 text-sm shadow-sm"
+            >
+              <option value="">— Tất cả —</option>
+              {levelOptions.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name ?? `Cấp ${l.levelNo}`}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="beneficiary-select" className="text-xs font-medium text-muted-foreground">
             Người hưởng hoa hồng
           </label>
-          <select
-            id="beneficiary-select"
-            value={affiliateUserId}
-            onChange={(e) => {
-              setFilters((prev) => ({ ...prev, affiliateUserId: e.target.value }));
-              resetToFirstPage();
-            }}
-            className="h-11 min-w-[200px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
-          >
-            <option value="">— Tất cả —</option>
-            {beneficiaryOptions.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name ?? b.id}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="beneficiary-select"
+              value={affiliateUserId}
+              onChange={(e) => {
+                setFilters((prev) => ({ ...prev, affiliateUserId: e.target.value }));
+                resetToFirstPage();
+              }}
+              className="h-11 min-w-[200px] w-full appearance-none rounded-xl border border-border/70 bg-background pl-3 pr-9 text-sm shadow-sm"
+            >
+              <option value="">— Tất cả —</option>
+              {beneficiaryOptions.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name ?? b.id}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="status-select" className="text-xs font-medium text-muted-foreground">
             Trạng thái đơn
           </label>
-          <select
-            id="status-select"
-            value={statusBill}
-            onChange={(e) => {
-              setFilters((prev) => ({ ...prev, statusBill: e.target.value }));
-              resetToFirstPage();
-            }}
-            className="h-11 min-w-[160px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
-          >
-            <option value="">— Tất cả —</option>
-            <option value="0">Phiếu nháp</option>
-            <option value="1">Đang xử lý</option>
-            <option value="2">Thành công</option>
-            <option value="3">Huỷ</option>
-          </select>
+          <div className="relative">
+            <select
+              id="status-select"
+              value={statusBill}
+              onChange={(e) => {
+                setFilters((prev) => ({ ...prev, statusBill: e.target.value }));
+                resetToFirstPage();
+              }}
+              className="h-11 min-w-[160px] w-full appearance-none rounded-xl border border-border/70 bg-background pl-3 pr-9 text-sm shadow-sm"
+            >
+              <option value="">— Tất cả —</option>
+              <option value="0">Phiếu nháp</option>
+              <option value="1">Đang xử lý</option>
+              <option value="2">Thành công</option>
+              <option value="3">Huỷ</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">
           <label htmlFor="product-type-select" className="text-xs font-medium text-muted-foreground">
             Loại sản phẩm
           </label>
-          <select
-            id="product-type-select"
-            value={productType}
-            onChange={(e) => {
-              setFilters((prev) => ({ ...prev, productType: e.target.value }));
-              resetToFirstPage();
-            }}
-            className="h-11 min-w-[160px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
-          >
-            <option value="">— Tất cả —</option>
-            <option value="PHYSICAL">Vật lý</option>
-            <option value="NON_PHYSICAL">Phi vật lý</option>
-          </select>
+          <div className="relative">
+            <select
+              id="product-type-select"
+              value={productType}
+              onChange={(e) => {
+                setFilters((prev) => ({ ...prev, productType: e.target.value }));
+                resetToFirstPage();
+              }}
+              className="h-11 min-w-[160px] w-full appearance-none rounded-xl border border-border/70 bg-background pl-3 pr-9 text-sm shadow-sm"
+            >
+              <option value="">— Tất cả —</option>
+              <option value="PHYSICAL">Vật lý</option>
+              <option value="NON_PHYSICAL">Phi vật lý</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">

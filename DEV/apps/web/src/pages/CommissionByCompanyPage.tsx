@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { subDays, format } from 'date-fns';
+import { ChevronDown } from 'lucide-react';
 import {
   getCompaniesApi,
   getCommissionByPersonApi,
@@ -149,19 +150,22 @@ export function CommissionByCompanyPage() {
           <label htmlFor="company-select" className="text-xs font-medium text-muted-foreground">
             Công ty
           </label>
-          <select
-            id="company-select"
-            value={companyId}
-            onChange={(e) => setFilters((prev) => ({ ...prev, companyId: e.target.value }))}
-            className="h-11 min-w-[220px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
-          >
-            <option value="">— Chọn công ty —</option>
-            {companyOptions.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name ?? c.id}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="company-select"
+              value={companyId}
+              onChange={(e) => setFilters((prev) => ({ ...prev, companyId: e.target.value }))}
+              className="h-11 min-w-[220px] w-full appearance-none rounded-xl border border-border/70 bg-background pl-3 pr-9 text-sm shadow-sm"
+            >
+              <option value="">— Chọn công ty —</option>
+              {companyOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name ?? c.id}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          </div>
         </div>
 
         <DateRangePresetPicker
