@@ -74,7 +74,7 @@ export function LoginPage() {
               autoFocus
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="vd: admin.alliance"
+              placeholder="Nhập tên đăng nhập..."
               disabled={submitting}
               required
             />
@@ -90,7 +90,7 @@ export function LoginPage() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Nhập mật khẩu..."
                 disabled={submitting}
                 required
                 className="pr-10"

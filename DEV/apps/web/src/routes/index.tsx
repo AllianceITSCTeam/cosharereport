@@ -1,7 +1,7 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { AppLayout } from '@/layouts/AppLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { DashboardPage } from '@/pages/DashboardPage';
+import { NAV_ITEMS } from '@/config/nav.config';
 import { LatestUsersPage } from '@/pages/LatestUsersPage';
 import { CommissionOverviewPage } from '@/pages/CommissionOverviewPage';
 import { CommissionByCompanyPage } from '@/pages/CommissionByCompanyPage';
@@ -27,7 +27,7 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <DashboardPage /> },
+      { index: true, element: <Navigate to={NAV_ITEMS[0].path} replace /> },
       { path: 'reports/latest-users', element: <LatestUsersPage /> },
       { path: 'reports/commission-overview', element: <CommissionOverviewPage /> },
       { path: 'reports/commission-by-company', element: <CommissionByCompanyPage /> },

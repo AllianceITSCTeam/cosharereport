@@ -84,7 +84,14 @@ export class AuthController {
 
   @Post('auth/logout')
   logout(@Req() req: Request, @Res() res: Response): void {
-    res.clearCookie(SESSION_COOKIE_NAME);
+    // Must mirror the attributes used when the cookie was set, otherwise the browser
+    // treats it as a different cookie and the session cookie survives the logout.
+    res.clearCookie(SESSION_COOKIE_NAME, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
     res.status(204).send();
     void req;
   }

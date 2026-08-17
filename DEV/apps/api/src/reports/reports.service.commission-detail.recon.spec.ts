@@ -151,6 +151,19 @@ describeIfReconDb('ReportsService — Screen 3 reconciliation (companyId=12, to�
     expect(page1.pagination.totalCount).toBe(page2.pagination.totalCount);
   });
 
+  it('bug report 2026-08-12: order C4M0B8 (BillDate 2026-05-05) must appear when filtering by month=May 2026 with no other filters', async () => {
+    const result = await service.commissionDetail({
+      from: '2026-05-01',
+      to: '2026-05-31',
+      page: 1,
+      pageSize: 100000, // wide enough to guarantee the order is included regardless of sort position
+    });
+
+    const row = result.rows.find((r) => r.orderCode === 'C4M0B8');
+    expect(row).toBeDefined();
+    expect(row!.orderDate?.slice(0, 10)).toBe('2026-05-05');
+  });
+
   it('UTC+7 day boundary — an order with BillDate at 2026-04-09T17:00:00Z (= 2026-04-10T00:00:00+07:00) falls on 2026-04-10, not 2026-04-09, for a UTC+7 caller', async () => {
     // Mirrors the boundary check already done for Screen 1 (docs/db/conventions.md §1 example).
     // Requires a bill with BillDate exactly at/near this instant to exist — if none does in this

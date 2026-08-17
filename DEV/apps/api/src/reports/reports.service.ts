@@ -132,6 +132,28 @@ export interface CommissionDetailResult {
   pagination: { page: number; pageSize: number; totalCount: number };
 }
 
+export interface CommissionDetailExportResult {
+  rows: CommissionDetailRow[];
+  summary: CommissionDetailSummary;
+  truncated: boolean;
+}
+
+/** Hard safety cap on unpaginated exports — see docs/reports/commission-orders.md §Xuất Excel. */
+const EXPORT_ROW_CAP = 50000;
+
+interface CommissionDetailQuery {
+  from: string;
+  to: string;
+  companyId?: string;
+  affiliateLevelId?: string;
+  affiliateUserId?: string;
+  msnv?: string;
+  statusBill?: number;
+  productType?: 'PHYSICAL' | 'NON_PHYSICAL';
+  keyword?: string;
+  timezone?: string;
+}
+
 interface MerchantBillDetailRawRow {
   item_name: string | null;
   quantity: Prisma.Decimal;
@@ -401,20 +423,9 @@ export class ReportsService {
    * SAU khi lọc nhưng TRƯỚC `LIMIT/OFFSET` — tránh 2 query rows/summary lệch filter nhau
    * (cảnh báo trong 02-Commission-Report-Queries.sql).
    */
-  async commissionDetail(query: {
-    from: string;
-    to: string;
-    companyId?: string;
-    affiliateLevelId?: string;
-    affiliateUserId?: string;
-    msnv?: string;
-    statusBill?: number;
-    productType?: 'PHYSICAL' | 'NON_PHYSICAL';
-    keyword?: string;
-    page?: number;
-    pageSize?: number;
-    timezone?: string;
-  }): Promise<CommissionDetailResult> {
+  async commissionDetail(
+    query: CommissionDetailQuery & { page?: number; pageSize?: number },
+  ): Promise<CommissionDetailResult> {
     if (!query.from || !query.to) {
       throw new BadRequestException('from/to are required for Screen 3 (Báo cáo đơn hàng)');
     }
@@ -425,6 +436,34 @@ export class ReportsService {
     const pageSize = query.pageSize && query.pageSize > 0 ? Math.floor(query.pageSize) : 50;
     const offset = (page - 1) * pageSize;
 
+    const conditions = this.buildCommissionDetailFilter(query, gte, lte);
+    const whereClause = Prisma.join(conditions, ' AND ');
+
+    const rows = await this.prisma.$queryRaw<CommissionDetailRawRow[]>(Prisma.sql`
+      ${this.buildCommissionDetailCte(whereClause)}
+      LIMIT ${pageSize} OFFSET ${offset}
+    `);
+
+    return {
+      rows: this.mapCommissionDetailRows(rows),
+      summary: this.summaryFromRows(rows),
+      pagination: {
+        page,
+        pageSize,
+        totalCount: rows[0] ? Number(rows[0].total_count) : 0,
+      },
+    };
+  }
+
+  /**
+   * Điều kiện lọc dùng chung cho cả bản phân trang (`commissionDetail`) lẫn bản xuất Excel
+   * (`commissionDetailExport`) — tách riêng để 2 bản KHÔNG BAO GIỜ lệch filter với nhau.
+   */
+  private buildCommissionDetailFilter(
+    query: CommissionDetailQuery,
+    gte: Date,
+    lte: Date,
+  ): Prisma.Sql[] {
     const companyId = parseOptionalBigIntParam(query.companyId, 'companyId');
     const affiliateLevelId = parseOptionalBigIntParam(query.affiliateLevelId, 'affiliateLevelId');
     const affiliateUserId = parseOptionalBigIntParam(query.affiliateUserId, 'affiliateUserId');
@@ -457,7 +496,10 @@ export class ReportsService {
       conditions.push(Prisma.sql`b."StatusBill" = ${query.statusBill}`);
     }
     if (query.msnv) {
-      conditions.push(Prisma.sql`buyer_staff."StaffCode" = ${query.msnv}`);
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM dbo."ConfigEmployee" e
+        WHERE e."UserLoginId" = buyer."Id" AND e."IsDeleted" = false AND e."EmployeeCode" = ${query.msnv}
+      )`);
     }
     // Loại sp: không có đơn trộn (chốt §4) — PHI VẬT LÝ = có mặt hàng ZALOOA, VẬT LÝ = không có.
     if (query.productType === 'NON_PHYSICAL') {
@@ -476,16 +518,23 @@ export class ReportsService {
     if (query.keyword) {
       const kw = `%${query.keyword}%`;
       conditions.push(Prisma.sql`(
-        b."OrderNumber" ILIKE ${kw}
+        EXISTS (
+          SELECT 1 FROM dbo."Order_MerchantBill_Mapping" omb
+          JOIN dbo."Order" o ON o."Id" = omb."OrderId" AND o."IsDeleted" = false
+          WHERE omb."BillId" = b."Id" AND omb."IsDeleted" = false AND o."OrderNumber" ILIKE ${kw}
+        )
         OR buyer."DisplayName" ILIKE ${kw}
         OR ca.beneficiary_name ILIKE ${kw}
         OR ca.referrer_name ILIKE ${kw}
       )`);
     }
 
-    const whereClause = Prisma.join(conditions, ' AND ');
+    return conditions;
+  }
 
-    const rows = await this.prisma.$queryRaw<CommissionDetailRawRow[]>(Prisma.sql`
+  /** SQL dùng chung: `commission_agg` + `filtered` CTE, chưa có LIMIT/OFFSET — caller tự bọc thêm outer SELECT + LIMIT. */
+  private buildCommissionDetailCte(whereClause: Prisma.Sql): Prisma.Sql {
+    return Prisma.sql`
       WITH commission_agg AS (
         SELECT
           c."MerchantBillId"                                AS bill_id,
@@ -501,10 +550,23 @@ export class ReportsService {
       filtered AS (
         SELECT
           b."Id"                                                 AS bill_id,
-          b."OrderNumber"                                        AS order_code,
+          (
+            SELECT o."OrderNumber"
+            FROM dbo."Order_MerchantBill_Mapping" omb
+            JOIN dbo."Order" o ON o."Id" = omb."OrderId" AND o."IsDeleted" = false
+            WHERE omb."BillId" = b."Id" AND omb."IsDeleted" = false
+            ORDER BY omb."Id"
+            LIMIT 1
+          )                                                       AS order_code,
           b."BillDate"                                           AS order_date,
           COALESCE(buyer."DisplayName", b."RenterReceiverName")  AS buyer_name,
-          buyer_staff."StaffCode"                                AS msnv,
+          (
+            SELECT e."EmployeeCode"
+            FROM dbo."ConfigEmployee" e
+            WHERE e."UserLoginId" = buyer."Id" AND e."IsDeleted" = false
+            ORDER BY e."Id"
+            LIMIT 1
+          )                                                       AS msnv,
           ca.referrer_name                                       AS referrer_name,
           ca.beneficiary_name                                    AS beneficiary_name,
           b."TotalMoney"                                         AS order_total,
@@ -513,7 +575,6 @@ export class ReportsService {
         FROM dbo."MerchantBill" b
         LEFT JOIN commission_agg ca      ON ca.bill_id = b."Id"
         LEFT JOIN dbo."UserLogin" buyer  ON buyer."ID_GUID" = b."RenterGUID"
-        LEFT JOIN dbo."Staff" buyer_staff ON buyer_staff."Id" = buyer."Id"
         WHERE ${whereClause}
       )
       SELECT
@@ -525,36 +586,63 @@ export class ReportsService {
         COUNT(*) FILTER (WHERE order_status = 3) OVER()    AS cancelled_orders
       FROM filtered
       ORDER BY order_date DESC, bill_id DESC
-      LIMIT ${pageSize} OFFSET ${offset}
+    `;
+  }
+
+  private mapCommissionDetailRows(rows: CommissionDetailRawRow[]): CommissionDetailRow[] {
+    return rows.map((r) => ({
+      billId: String(r.bill_id),
+      orderCode: r.order_code,
+      orderDate: r.order_date ? r.order_date.toISOString() : null,
+      buyerName: r.buyer_name,
+      msnv: r.msnv,
+      referrerName: r.referrer_name,
+      beneficiaryName: r.beneficiary_name,
+      orderTotal: String(r.order_total),
+      commissionAmount: String(r.commission_amount),
+      orderStatus: r.order_status,
+    }));
+  }
+
+  private summaryFromRows(rows: CommissionDetailRawRow[]): CommissionDetailSummary {
+    const first = rows[0];
+    return {
+      totalOrders: first ? Number(first.total_count) : 0,
+      successOrders: first ? Number(first.success_orders) : 0,
+      cancelledOrders: first ? Number(first.cancelled_orders) : 0,
+      sumOrderTotal: first ? String(first.sum_order_total) : '0',
+      sumCommission: first ? String(first.sum_commission) : '0',
+    };
+  }
+
+  /**
+   * Screen 3 — Xuất Excel: TOÀN BỘ đơn khớp filter (không phân trang, chốt với user 2026-08-13),
+   * dùng lại y hệt `buildCommissionDetailFilter`/CTE của `commissionDetail` — 2 bản không bao giờ
+   * lệch điều kiện lọc. Giới hạn an toàn `EXPORT_ROW_CAP` dòng để tránh OOM nếu filter quá rộng;
+   * `truncated: true` báo cho FE biết khi tổng thực > cap để cảnh báo người dùng thu hẹp filter.
+   */
+  async commissionDetailExport(query: CommissionDetailQuery): Promise<CommissionDetailExportResult> {
+    if (!query.from || !query.to) {
+      throw new BadRequestException('from/to are required for Screen 3 (Báo cáo đơn hàng)');
+    }
+
+    const timezone = normalizeTimezone(query.timezone);
+    const { gte, lte } = toUtcDateRange(query.from, query.to, timezone);
+    const conditions = this.buildCommissionDetailFilter(query, gte, lte);
+    const whereClause = Prisma.join(conditions, ' AND ');
+
+    const rows = await this.prisma.$queryRaw<CommissionDetailRawRow[]>(Prisma.sql`
+      ${this.buildCommissionDetailCte(whereClause)}
+      LIMIT ${EXPORT_ROW_CAP}
     `);
 
     const first = rows[0];
+    const totalCount = first ? Number(first.total_count) : 0;
 
     return {
-      rows: rows.map((r) => ({
-        billId: String(r.bill_id),
-        orderCode: r.order_code,
-        orderDate: r.order_date ? r.order_date.toISOString() : null,
-        buyerName: r.buyer_name,
-        msnv: r.msnv,
-        referrerName: r.referrer_name,
-        beneficiaryName: r.beneficiary_name,
-        orderTotal: String(r.order_total),
-        commissionAmount: String(r.commission_amount),
-        orderStatus: r.order_status,
-      })),
-      summary: {
-        totalOrders: first ? Number(first.total_count) : 0,
-        successOrders: first ? Number(first.success_orders) : 0,
-        cancelledOrders: first ? Number(first.cancelled_orders) : 0,
-        sumOrderTotal: first ? String(first.sum_order_total) : '0',
-        sumCommission: first ? String(first.sum_commission) : '0',
-      },
-      pagination: {
-        page,
-        pageSize,
-        totalCount: first ? Number(first.total_count) : 0,
-      },
+      rows: this.mapCommissionDetailRows(rows),
+      summary: this.summaryFromRows(rows),
+      truncated: totalCount > EXPORT_ROW_CAP,
     };
   }
 
