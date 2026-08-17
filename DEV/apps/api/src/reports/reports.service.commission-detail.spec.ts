@@ -77,12 +77,19 @@ describe('ReportsService — Screen 3 (Báo cáo đơn hàng)', () => {
       expect(sqlArg.sql).toMatch(/ZALOOA/i);
     });
 
-    it('filters by msnv via Staff.StaffCode of the buyer', async () => {
+    it('filters by msnv via ConfigEmployee.EmployeeCode of the buyer (joined by UserLoginId, per CoShare correction 2026-08-12 — not Staff.StaffCode)', async () => {
       queryRawMock.mockResolvedValue([]);
       await service.commissionDetail({ from: '2026-04-01', to: '2026-04-30', msnv: 'NV001' });
       const sqlArg = queryRawMock.mock.calls[0][0] as Prisma.Sql;
-      expect(sqlArg.sql).toMatch(/"Staff"/);
+      expect(sqlArg.sql).toMatch(/"ConfigEmployee"/);
+      expect(sqlArg.sql).toMatch(/"UserLoginId"/);
       expect(sqlArg.values).toContain('NV001');
+    });
+
+    it('order_code comes from Order.OrderNumber via Order_MerchantBill_Mapping (per CoShare correction 2026-08-12 — not MerchantBill.OrderNumber)', async () => {
+      const sqlArg = await buildSql(service);
+      expect(sqlArg.sql).toMatch(/"Order_MerchantBill_Mapping"/);
+      expect(sqlArg.sql).toMatch(/JOIN\s+dbo\."Order"\s+o\b/i);
     });
 
     it('paginates with LIMIT/OFFSET computed from page/pageSize', async () => {
@@ -178,6 +185,88 @@ describe('ReportsService — Screen 3 (Báo cáo đơn hàng)', () => {
       await svc.commissionDetail({ from: '2026-04-01', to: '2026-04-30' });
       return queryRawMock.mock.calls[queryRawMock.mock.calls.length - 1][0] as Prisma.Sql;
     }
+  });
+
+  describe('commissionDetailExport', () => {
+    it('rejects when from/to are missing', async () => {
+      await expect(
+        service.commissionDetailExport({ from: '', to: '' } as never),
+      ).rejects.toThrow();
+      expect(queryRawMock).not.toHaveBeenCalled();
+    });
+
+    it('runs an unpaginated query capped at 50000 rows — not the page/pageSize LIMIT/OFFSET used by commissionDetail', async () => {
+      queryRawMock.mockResolvedValue([]);
+      await service.commissionDetailExport({ from: '2026-04-01', to: '2026-04-30' });
+
+      expect(queryRawMock).toHaveBeenCalledTimes(1);
+      const sqlArg = queryRawMock.mock.calls[0][0] as Prisma.Sql;
+      expect(sqlArg.sql).toMatch(/LIMIT/i);
+      expect(sqlArg.sql).not.toMatch(/OFFSET/i);
+      expect(sqlArg.values).toContain(50000);
+    });
+
+    it('applies the exact same filter conditions as commissionDetail (companyId/productType/msnv/keyword) — the two must never drift', async () => {
+      queryRawMock.mockResolvedValue([]);
+      await service.commissionDetailExport({
+        from: '2026-04-01',
+        to: '2026-04-30',
+        companyId: '4',
+        productType: 'NON_PHYSICAL',
+        msnv: 'NV001',
+      });
+      const exportSql = queryRawMock.mock.calls[0][0] as Prisma.Sql;
+
+      queryRawMock.mockClear();
+      queryRawMock.mockResolvedValue([]);
+      await service.commissionDetail({
+        from: '2026-04-01',
+        to: '2026-04-30',
+        companyId: '4',
+        productType: 'NON_PHYSICAL',
+        msnv: 'NV001',
+        page: 1,
+        pageSize: 50000,
+      });
+      const detailSql = queryRawMock.mock.calls[0][0] as Prisma.Sql;
+
+      // Both queries build their WHERE clause from the same filter conditions — the CTE bodies
+      // (commission_agg/filtered) are identical text; only the outer LIMIT/OFFSET differs.
+      const stripLimitOffset = (sql: string) => sql.replace(/LIMIT\s+\S+(\s+OFFSET\s+\S+)?\s*$/i, '');
+      expect(stripLimitOffset(exportSql.sql).trim()).toBe(stripLimitOffset(detailSql.sql).trim());
+    });
+
+    it('flags truncated:true when the filtered set exceeds the 50000-row export cap', async () => {
+      queryRawMock.mockResolvedValue([
+        {
+          bill_id: 1n,
+          order_code: 'ORD-1',
+          order_date: new Date('2026-04-10T03:00:00.000Z'),
+          buyer_name: 'A',
+          msnv: null,
+          referrer_name: null,
+          beneficiary_name: null,
+          order_total: new Prisma.Decimal('100'),
+          commission_amount: new Prisma.Decimal('0'),
+          order_status: 1,
+          total_count: 50001n,
+          sum_order_total: new Prisma.Decimal('100'),
+          sum_commission: new Prisma.Decimal('0'),
+          success_orders: 0n,
+          cancelled_orders: 0n,
+        },
+      ]);
+
+      const result = await service.commissionDetailExport({ from: '2026-04-01', to: '2026-04-30' });
+      expect(result.truncated).toBe(true);
+    });
+
+    it('flags truncated:false when the filtered set is within the export cap', async () => {
+      queryRawMock.mockResolvedValue([]);
+
+      const result = await service.commissionDetailExport({ from: '2026-04-01', to: '2026-04-30' });
+      expect(result.truncated).toBe(false);
+    });
   });
 
   describe('commissionDetailItems', () => {

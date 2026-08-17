@@ -42,8 +42,17 @@
     `STRING_AGG(DISTINCT DisplayName, ', ')` — không mất tên, không lặp tên (nhờ `DISTINCT`).
   - Đơn không có dòng hoa hồng nào vẫn hiện (LEFT JOIN `commission_agg`), `commissionAmount = 0` —
     giống cách Screen 1 giữ dòng null-company, không âm thầm làm mất đơn khỏi danh sách.
-  - `msnv` = `Staff.StaffCode` của **khách mua** (`MerchantBill.RenterGUID → UserLogin.Id →
-    Staff.Id`) — khớp Requirement/Findings §4, **không phải** MSNV người bán.
+  - `orderCode` = `Order.OrderNumber` của **khách mua**, nối qua bảng cầu
+    `Order_MerchantBill_Mapping` (`MerchantBill.Id → Order_MerchantBill_Mapping.BillId →
+    Order_MerchantBill_Mapping.OrderId → Order.Id`) — **CoShare xác nhận trực tiếp 2026-08-12**,
+    **không phải** `MerchantBill.OrderNumber` (giả định ban đầu, cột này vẫn tồn tại trên
+    `MerchantBill` nhưng không phải mã đơn chính thức). Không có ràng buộc unique trên
+    `Order_MerchantBill_Mapping.BillId` → lấy qua subquery tương quan `ORDER BY "Id" LIMIT 1` (không
+    `LEFT JOIN` trực tiếp) để tránh nhân dòng nếu 1 bill có >1 mapping.
+  - `msnv` = `ConfigEmployee.EmployeeCode` của **khách mua**, nối qua `ConfigEmployee.UserLoginId →
+    UserLogin.Id` — **CoShare xác nhận trực tiếp 2026-08-12**, **không phải** `Staff.StaffCode`
+    (giả định ban đầu). Không có ràng buộc unique trên `ConfigEmployee.UserLoginId` → cũng lấy qua
+    subquery tương quan `ORDER BY "Id" LIMIT 1`, cùng lý do tránh nhân dòng.
   - `productType`: không có đơn trộn vật lý + phi vật lý (đã chốt) → `PHYSICAL` = `NOT EXISTS`
     dòng `MerchantBillDetail` nối `MerchantProduct.Code ILIKE '%ZALOOA%'`; `NON_PHYSICAL` = `EXISTS`.
   - Phân trang + summary tính trong **CÙNG 1 query** bằng window function (`COUNT(*) OVER()`,
@@ -54,9 +63,10 @@
 
 - **Bảng chính:** `MerchantBill` (base — đảm bảo mọi đơn đều xuất hiện, kể cả không có hoa hồng).
 - **Bảng join:** `MerchantBillCommission` (gộp theo đơn trong CTE `commission_agg`), `UserLogin`
-  (người mua/người bán/người hưởng), `Staff` (MSNV người mua), `MerchantBillDetail` +
-  `MerchantProduct` (lọc Loại sp + expander line-item), `UserLogin_Company_Mapping` (filter Cty),
-  `ConfigAffiliateLevel` (danh sách Cấp cho filter dropdown).
+  (người mua/người bán/người hưởng), `ConfigEmployee` (MSNV người mua, qua `UserLoginId`),
+  `Order` + `Order_MerchantBill_Mapping` (Mã đơn), `MerchantBillDetail` + `MerchantProduct` (lọc
+  Loại sp + expander line-item), `UserLogin_Company_Mapping` (filter Cty), `ConfigAffiliateLevel`
+  (danh sách Cấp cho filter dropdown).
 - **Quy ước áp dụng:** soft-delete ☑ loại (`IsDeleted=false` trên `MerchantBill`,
   `MerchantBillCommission`, `MerchantBillDetail`, `UserLogin_Company_Mapping`,
   `ConfigAffiliateLevel`) · timezone: `toUtcDateRange(from, to, timezone)` trên
@@ -89,15 +99,53 @@
 - Tất cả sau `JwtAuthGuard`, validate qua `CommissionDetailQueryDto` /
   `CommissionBeneficiariesQueryDto` với `ValidationPipe` toàn cục (`transform: true`).
 
+## 4b. Xuất Excel (2026-08-13)
+
+- **Phạm vi:** TOÀN BỘ đơn khớp filter hiện tại, **không giới hạn theo trang** — xác nhận trực tiếp
+  với user qua `AskUserQuestion` (khác với chỉ xuất 50 dòng đang xem trên UI).
+- **Endpoint:** `GET /reports/commission/detail/export` — cùng `CommissionDetailQueryDto`, bỏ qua
+  `page`/`pageSize` nếu FE gửi kèm (export luôn full, không phân trang). Trả file nhị phân trực
+  tiếp qua `@Res()` (bypass `ResponseInterceptor` toàn cục) — không phải JSON envelope.
+- **Giới hạn an toàn:** `EXPORT_ROW_CAP = 50000` dòng — `LIMIT 50000` cứng ở cuối query, tránh OOM
+  nếu filter quá rộng. Cờ `truncated: true` được set khi `total_count` (window function) > 50000,
+  đọc qua header tuỳ chỉnh `X-Export-Truncated` (vì response là blob, không đọc được JSON field) —
+  FE hiện cảnh báo "Đã xuất 50.000 dòng đầu tiên..." khi cờ này bật.
+- **Đảm bảo không lệch filter với `commissionDetail`:** cả 2 method dùng chung
+  `buildCommissionDetailFilter()` (build `WHERE` conditions) và `buildCommissionDetailCte()` (CTE
+  `commission_agg`/`filtered` + window function), chỉ khác `LIMIT/OFFSET` ở cuối — có test riêng
+  (`reports.service.commission-detail.spec.ts`) so sánh SQL text của 2 method (trừ đoạn
+  LIMIT/OFFSET) để đảm bảo không bao giờ trôi lệch điều kiện lọc.
+- **Cột xuất ra** (đúng thứ tự hiển thị trên UI, bỏ cột nút mũi tên expander): Mã đơn, Ngày đặt,
+  Người mua, MSNV, Người hưởng h.h, Tổng tiền đơn, Tổng tiền hoa hồng, Trạng thái. Dòng cuối "Tổng
+  cộng" in đậm, lấy từ `summary` (không tự cộng lại ở tầng dựng file).
+- **Định dạng số tiền:** number Excel thật (`numFmt: '#,##0'`), không phải string đã format sẵn —
+  để mở file ra tính tổng/lọc được ngay trong Excel.
+- **File dựng:** `apps/api/src/reports/commission-detail-export.util.ts` (`buildCommissionDetailWorkbook`,
+  dùng `exceljs`, hàm thuần không phụ thuộc Prisma — test độc lập không cần mock DB).
+- **Frontend:** `getCommissionDetailExportApi()` trong `reports.api.ts` dùng `fetch` (không phải
+  axios/react-query, vì cần đọc `Blob` + header tuỳ chỉnh) → tạo `<a download>` ẩn để trigger tải
+  file trên trình duyệt. Nút "Xuất Excel" trên `CommissionOrdersPage.tsx`, disable khi đang xuất
+  hoặc chưa chọn khoảng ngày.
+- **Cập nhật quyết định cũ:** mục "2026-08-12: Không làm nút Export" ở dưới đã lỗi thời — user yêu
+  cầu thêm tính năng này ngày 2026-08-13, xem ghi chú tương ứng.
+
 ## 5. Frontend
 
-- **Chưa làm trong phiên này** — theo đúng thứ tự trong plan (backend + test trước, frontend sau).
+- `apps/web/src/pages/CommissionOrdersPage.tsx` — filter bar (khoảng ngày, Cty, Cấp hệ hoa hồng,
+  Người hưởng hoa hồng, Trạng thái đơn, Loại sp, MSNV, Tên/Mã đơn), dòng summary cố định lấy từ
+  API `summary` (không tự cộng ở FE vì có phân trang), phân trang Trước/Sau, mỗi dòng có nút mở
+  rộng (`ChevronRight`/`ChevronDown`) hiện bảng phụ mặt hàng (`commissionDetailItems`) khi bấm.
+  Route `/reports/commission-orders` + mục menu "Báo cáo đơn hàng" đã thêm.
+- **Chưa kiểm tra qua browser thật** — môi trường code hiện tại không có `.env`/kết nối DB thật;
+  cần HUMAN mở `/reports/commission-orders`, thử filter, phân trang, và mở expander của 1 đơn có
+  nhiều mặt hàng.
 
 ## 6. Kiểm tra (bắt buộc — không chỉ "chạy được")
 
-- [x] **Unit test:** `reports.service.commission-detail.spec.ts` — 17 test, mock `$queryRaw`,
+- [x] **Unit test:** `reports.service.commission-detail.spec.ts` — 18 test, mock `$queryRaw`,
       bao gồm grain guard (`STRING_AGG` + `GROUP BY` theo bill id), validate bigint params, phân
-      trang, window function summary, mapping BigInt/Decimal → JSON-safe.
+      trang, window function summary, mapping BigInt/Decimal → JSON-safe, nguồn `orderCode`/`msnv`
+      đúng sau khi sửa (xem Ghi chú 2026-08-12 bên dưới).
 - [ ] **Đối soát (RECON_DB):** `reports.service.commission-detail.recon.spec.ts` viết xong (opt-in),
       **chưa chạy được** trong phiên này (không có kết nối DB thật) — cần HUMAN chạy
       `RECON_DB=1 npx jest reports.service.commission-detail.recon.spec.ts` và báo lại kết quả.
@@ -124,6 +172,10 @@
   `03-Commission-Report-ImplementationGuide.md §5` (không normative), không có trong
   `00-...Requirement.md §3` (nguồn yêu cầu chính thức). Ghi lại là quyết định phạm vi rõ ràng, có
   thể làm sau nếu được yêu cầu — không phải bỏ sót âm thầm.
+  **[Cập nhật 2026-08-13: user yêu cầu bổ sung, đã làm — xem §4b.]**
+- **2026-08-13: Thêm chức năng Xuất Excel** — user yêu cầu xuất đúng dữ liệu đang hiển thị theo
+  filter đã chọn; xác nhận qua `AskUserQuestion` rằng phạm vi là TOÀN BỘ đơn khớp filter (không chỉ
+  trang hiện tại). Chi tiết đầy đủ ở §4b.
 - **2026-08-12: Thêm 2 endpoint lookup không có tên tường minh trong bảng endpoint của
   ImplementationGuide** (`commission/levels`, `commission/beneficiaries`) — cần thiết để render
   đúng 2 filter dropdown "Cấp hệ hoa hồng" và "Người hưởng hoa hồng" mà không hardcode giá trị tĩnh
@@ -132,3 +184,10 @@
 - **2026-08-12: Chưa chạy recon test được** — môi trường code hiện tại không có `.env`/kết nối DB
   thật. Giao lại cho HUMAN chạy `RECON_DB=1` và điền số vàng vào `conventions.md §5.4`, theo đúng
   quy trình đã áp dụng cho Screen 1/2.
+- **2026-08-12: CoShare sửa nguồn dữ liệu `orderCode`/`msnv` (đã code sai ban đầu, user báo trực
+  tiếp)** — `orderCode` là `Order.OrderNumber` (qua `Order_MerchantBill_Mapping`), **không phải**
+  `MerchantBill.OrderNumber`; `msnv` là `ConfigEmployee.EmployeeCode` (qua `UserLoginId`), **không
+  phải** `Staff.StaffCode`. Cả 2 cột nguồn mới đều không có ràng buộc unique trên khoá nối → dùng
+  subquery tương quan `ORDER BY "Id" LIMIT 1` thay vì `LEFT JOIN` trực tiếp, để không vi phạm quyết
+  định grain "1 dòng = 1 MerchantBill" nếu phát sinh nhiều dòng khớp. Đã sửa SQL, filter `msnv`,
+  filter `keyword`, và test tương ứng; test suite xanh lại sau khi sửa.

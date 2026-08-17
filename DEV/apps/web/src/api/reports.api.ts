@@ -46,6 +46,28 @@ export async function getCommissionOverviewApi(
   return res.data.data;
 }
 
+function toQueryString(query: object): string {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      params.set(key, String(value));
+    }
+  });
+  return params.toString();
+}
+
+async function fetchExportBlob(url: string): Promise<Blob> {
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) {
+    throw new Error(`Xuất Excel thất bại (HTTP ${res.status})`);
+  }
+  return res.blob();
+}
+
+export async function getCommissionOverviewExportApi(query: ICommissionOverviewQuery): Promise<Blob> {
+  return fetchExportBlob(`/api/reports/commission/overview/export?${toQueryString(query)}`);
+}
+
 export interface ICompanyOption {
   id: string;
   name: string | null;
@@ -99,6 +121,10 @@ export async function getCommissionByLevelApi(
   return res.data.data;
 }
 
+export async function getCommissionByCompanyExportApi(query: ICommissionByCompanyQuery): Promise<Blob> {
+  return fetchExportBlob(`/api/reports/commission/by-company/export?${toQueryString(query)}`);
+}
+
 export interface ICommissionDetailQuery {
   from: string;
   to: string;
@@ -149,6 +175,33 @@ export async function getCommissionDetailApi(
     { params: query },
   );
   return res.data.data;
+}
+
+export interface ICommissionDetailExportResult {
+  blob: Blob;
+  truncated: boolean;
+}
+
+export async function getCommissionDetailExportApi(
+  query: Omit<ICommissionDetailQuery, 'page' | 'pageSize'>,
+): Promise<ICommissionDetailExportResult> {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      params.set(key, String(value));
+    }
+  });
+
+  const res = await fetch(`/api/reports/commission/detail/export?${params.toString()}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    throw new Error(`Xuất Excel thất bại (HTTP ${res.status})`);
+  }
+
+  const blob = await res.blob();
+  const truncated = res.headers.get('X-Export-Truncated') === 'true';
+  return { blob, truncated };
 }
 
 export interface IMerchantBillDetailRow {

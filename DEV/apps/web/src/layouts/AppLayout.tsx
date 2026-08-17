@@ -16,7 +16,7 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="w-56 shrink-0 border-r bg-card flex flex-col">
-        <div className="px-4 py-4 border-b">
+        <div className="flex h-16 items-center border-b px-4">
           <Link to="/" className="flex items-center">
             <img src="/images/logo/coshare-logo.png" alt="CoShare" className="h-8 object-contain" />
           </Link>
@@ -42,7 +42,7 @@ export function AppLayout() {
         </nav>
       </aside>
       <div className="flex-1 flex flex-col">
-        <header className="flex items-center justify-between border-b px-6 py-3">
+        <header className="flex h-16 items-center justify-between border-b px-6">
           <div />
           <div className="flex items-center gap-3">
             {user && (

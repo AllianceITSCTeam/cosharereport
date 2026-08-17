@@ -1,8 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { subDays, format } from 'date-fns';
-import { getCommissionOverviewApi, type ICommissionOverviewRow } from '@/api/reports.api';
+import {
+  getCommissionOverviewApi,
+  getCommissionOverviewExportApi,
+  type ICommissionOverviewRow,
+} from '@/api/reports.api';
 import { DateRangePresetPicker } from '@/components/filters/DateRangePresetPicker';
+import { FilterActions } from '@/components/filters/FilterActions';
+import { useFilterState } from '@/components/filters/hooks/useFilterState';
 import {
   Table,
   TableBody,
@@ -38,12 +45,17 @@ function sumTotals(rows: ICommissionOverviewRow[]) {
 
 export function CommissionOverviewPage() {
   const today = useMemo(() => new Date(), []);
-  const [range, setRange] = useState({
-    startDate: format(subDays(today, 29), 'yyyy-MM-dd'),
-    endDate: format(today, 'yyyy-MM-dd'),
+  const [range, setRange, resetRange] = useFilterState({
+    key: 'report-commission-overview-filters',
+    mode: 'localStorage',
+    defaultValue: {
+      startDate: format(subDays(today, 29), 'yyyy-MM-dd'),
+      endDate: format(today, 'yyyy-MM-dd'),
+    },
   });
 
   const hasRange = Boolean(range.startDate && range.endDate);
+  const [isExporting, setIsExporting] = useState(false);
 
   const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: ['reports', 'commission-overview', range.startDate, range.endDate],
@@ -54,6 +66,27 @@ export function CommissionOverviewPage() {
 
   const totals = useMemo(() => sumTotals(data ?? []), [data]);
 
+  const handleExport = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const blob = await getCommissionOverviewExportApi({ from: range.startDate!, to: range.endDate! });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hoa-hong-tong-quan-${format(new Date(), 'yyyyMMdd-HHmmss')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      window.alert('Xuất Excel thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -63,12 +96,22 @@ export function CommissionOverviewPage() {
         </p>
       </div>
 
-      <DateRangePresetPicker
-        value={range}
-        onChange={(v) => setRange({ startDate: v.startDate ?? '', endDate: v.endDate ?? '' })}
-        className="max-w-xs"
-        label="Khoảng ngày"
-      />
+      <div className="flex flex-wrap items-end gap-4">
+        <DateRangePresetPicker
+          value={range}
+          onChange={(v) => setRange({ startDate: v.startDate ?? '', endDate: v.endDate ?? '' })}
+          className="max-w-xs"
+          label="Khoảng ngày"
+        />
+        <FilterActions
+          onReset={resetRange}
+          onExport={hasRange ? handleExport : undefined}
+          isExporting={isExporting}
+          exportLabel="Xuất Excel"
+          exportingLabel="Đang xuất..."
+          testIdPrefix="overview-filter"
+        />
+      </div>
 
       <div className="rounded-lg border bg-card">
         {!hasRange && (
@@ -103,7 +146,16 @@ export function CommissionOverviewPage() {
               {data.map((row) => (
                 <TableRow key={row.companyId ?? 'unmapped'} className={isFetching ? 'opacity-60' : undefined}>
                   <TableCell className="font-medium text-foreground">
-                    {row.companyName ?? UNKNOWN_COMPANY_LABEL}
+                    {row.companyId ? (
+                      <Link
+                        to={`/reports/commission-by-company?companyId=${encodeURIComponent(row.companyId)}&startDate=${encodeURIComponent(range.startDate ?? '')}&endDate=${encodeURIComponent(range.endDate ?? '')}`}
+                        className="hover:underline"
+                      >
+                        {row.companyName ?? UNKNOWN_COMPANY_LABEL}
+                      </Link>
+                    ) : (
+                      row.companyName ?? UNKNOWN_COMPANY_LABEL
+                    )}
                   </TableCell>
                   <TableCell className="text-right text-muted-foreground">{formatMoney(row.revenue)}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{formatCount(row.totalOrders)}</TableCell>

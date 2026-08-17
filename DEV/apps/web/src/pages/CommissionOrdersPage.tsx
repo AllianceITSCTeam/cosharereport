@@ -5,11 +5,14 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
   getCompaniesApi,
   getCommissionDetailApi,
+  getCommissionDetailExportApi,
   getCommissionDetailItemsApi,
   getCommissionLevelsApi,
   getCommissionBeneficiariesApi,
 } from '@/api/reports.api';
 import { DateRangePresetPicker } from '@/components/filters/DateRangePresetPicker';
+import { FilterActions } from '@/components/filters/FilterActions';
+import { useFilterState } from '@/components/filters/hooks/useFilterState';
 import {
   Table,
   TableBody,
@@ -95,19 +98,36 @@ function BillItemsRow({ billId, colSpan }: { billId: string; colSpan: number }) 
 
 export function CommissionOrdersPage() {
   const today = useMemo(() => new Date(), []);
-  const [range, setRange] = useState({
-    startDate: format(subDays(today, 29), 'yyyy-MM-dd'),
-    endDate: format(today, 'yyyy-MM-dd'),
+  const [filters, setFilters, resetFilters] = useFilterState({
+    key: 'report-commission-orders-filters',
+    mode: 'localStorage',
+    defaultValue: {
+      startDate: format(subDays(today, 29), 'yyyy-MM-dd'),
+      endDate: format(today, 'yyyy-MM-dd'),
+      companyId: '',
+      affiliateLevelId: '',
+      affiliateUserId: '',
+      msnv: '',
+      statusBill: '',
+      productType: '',
+      keyword: '',
+    },
   });
-  const [companyId, setCompanyId] = useState('');
-  const [affiliateLevelId, setAffiliateLevelId] = useState('');
-  const [affiliateUserId, setAffiliateUserId] = useState('');
-  const [msnv, setMsnv] = useState('');
-  const [statusBill, setStatusBill] = useState('');
-  const [productType, setProductType] = useState('');
-  const [keyword, setKeyword] = useState('');
+  const {
+    startDate,
+    endDate,
+    companyId,
+    affiliateLevelId,
+    affiliateUserId,
+    msnv,
+    statusBill,
+    productType,
+    keyword,
+  } = filters;
+  const range = { startDate, endDate };
   const [page, setPage] = useState(1);
   const [expandedBillId, setExpandedBillId] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const pageSize = 50;
 
   const hasRange = Boolean(range.startDate && range.endDate);
@@ -163,6 +183,46 @@ export function CommissionOrdersPage() {
 
   const resetToFirstPage = () => setPage(1);
 
+  const handleResetFilters = () => {
+    resetFilters();
+    resetToFirstPage();
+  };
+
+  const handleExport = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const { blob, truncated } = await getCommissionDetailExportApi({
+        from: range.startDate,
+        to: range.endDate,
+        companyId: companyId || undefined,
+        affiliateLevelId: affiliateLevelId || undefined,
+        affiliateUserId: affiliateUserId || undefined,
+        msnv: msnv || undefined,
+        statusBill: statusBill ? Number(statusBill) : undefined,
+        productType: productType ? (productType as 'PHYSICAL' | 'NON_PHYSICAL') : undefined,
+        keyword: keyword || undefined,
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bao-cao-don-hang-${format(new Date(), 'yyyyMMdd-HHmmss')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      if (truncated) {
+        window.alert('Đã xuất 50.000 dòng đầu tiên. Hãy thu hẹp bộ lọc để xuất đầy đủ dữ liệu.');
+      }
+    } catch {
+      window.alert('Xuất Excel thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const rows = detailQuery.data?.rows ?? [];
   const summary = detailQuery.data?.summary;
   const pagination = detailQuery.data?.pagination;
@@ -178,11 +238,11 @@ export function CommissionOrdersPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap items-end gap-4">
         <DateRangePresetPicker
           value={range}
           onChange={(v) => {
-            setRange({ startDate: v.startDate ?? '', endDate: v.endDate ?? '' });
+            setFilters((prev) => ({ ...prev, startDate: v.startDate ?? '', endDate: v.endDate ?? '' }));
             resetToFirstPage();
           }}
           className="max-w-xs"
@@ -197,7 +257,7 @@ export function CommissionOrdersPage() {
             id="company-select"
             value={companyId}
             onChange={(e) => {
-              setCompanyId(e.target.value);
+              setFilters((prev) => ({ ...prev, companyId: e.target.value }));
               resetToFirstPage();
             }}
             className="h-11 min-w-[200px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
@@ -219,7 +279,7 @@ export function CommissionOrdersPage() {
             id="level-select"
             value={affiliateLevelId}
             onChange={(e) => {
-              setAffiliateLevelId(e.target.value);
+              setFilters((prev) => ({ ...prev, affiliateLevelId: e.target.value }));
               resetToFirstPage();
             }}
             className="h-11 min-w-[180px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
@@ -241,7 +301,7 @@ export function CommissionOrdersPage() {
             id="beneficiary-select"
             value={affiliateUserId}
             onChange={(e) => {
-              setAffiliateUserId(e.target.value);
+              setFilters((prev) => ({ ...prev, affiliateUserId: e.target.value }));
               resetToFirstPage();
             }}
             className="h-11 min-w-[200px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
@@ -263,7 +323,7 @@ export function CommissionOrdersPage() {
             id="status-select"
             value={statusBill}
             onChange={(e) => {
-              setStatusBill(e.target.value);
+              setFilters((prev) => ({ ...prev, statusBill: e.target.value }));
               resetToFirstPage();
             }}
             className="h-11 min-w-[160px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
@@ -284,7 +344,7 @@ export function CommissionOrdersPage() {
             id="product-type-select"
             value={productType}
             onChange={(e) => {
-              setProductType(e.target.value);
+              setFilters((prev) => ({ ...prev, productType: e.target.value }));
               resetToFirstPage();
             }}
             className="h-11 min-w-[160px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
@@ -303,7 +363,7 @@ export function CommissionOrdersPage() {
             id="msnv-input"
             value={msnv}
             onChange={(e) => {
-              setMsnv(e.target.value);
+              setFilters((prev) => ({ ...prev, msnv: e.target.value }));
               resetToFirstPage();
             }}
             className="h-11 min-w-[140px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
@@ -319,13 +379,22 @@ export function CommissionOrdersPage() {
             id="keyword-input"
             value={keyword}
             onChange={(e) => {
-              setKeyword(e.target.value);
+              setFilters((prev) => ({ ...prev, keyword: e.target.value }));
               resetToFirstPage();
             }}
             className="h-11 min-w-[200px] rounded-xl border border-border/70 bg-background px-3 text-sm shadow-sm"
             placeholder="Mã đơn / người mua / người hưởng"
           />
         </div>
+
+        <FilterActions
+          onReset={handleResetFilters}
+          onExport={hasRange ? handleExport : undefined}
+          isExporting={isExporting}
+          exportLabel="Xuất Excel"
+          exportingLabel="Đang xuất..."
+          testIdPrefix="orders-filter"
+        />
       </div>
 
       {!hasRange && (

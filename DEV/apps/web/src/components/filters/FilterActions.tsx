@@ -10,6 +10,7 @@ interface FilterActionsProps {
   searchLabel?: string;
   resetLabel?: string;
   exportLabel?: string;
+  exportingLabel?: string;
   extra?: React.ReactNode;
   testIdPrefix?: string;
 }
@@ -23,6 +24,7 @@ export function FilterActions({
   searchLabel = 'Search',
   resetLabel = 'Reset',
   exportLabel = 'Export Excel',
+  exportingLabel = 'Exporting...',
   extra,
   testIdPrefix,
 }: FilterActionsProps) {
@@ -34,6 +36,7 @@ export function FilterActions({
       {onSearch && (
         <Button
           size="sm"
+          className="h-11"
           onClick={onSearch}
           disabled={isSearching}
           data-testid={tid('search')}
@@ -44,6 +47,7 @@ export function FilterActions({
       {onReset && (
         <Button
           size="sm"
+          className="h-11"
           variant="outline"
           onClick={onReset}
           data-testid={tid('reset')}
@@ -54,13 +58,14 @@ export function FilterActions({
       {onExport && (
         <Button
           size="sm"
+          className="h-11"
           variant="outline"
           onClick={onExport}
           disabled={isExporting}
           data-testid={tid('export')}
         >
           <Download className="mr-2 h-4 w-4" />
-          {isExporting ? 'Exporting...' : exportLabel}
+          {isExporting ? exportingLabel : exportLabel}
         </Button>
       )}
     </>
