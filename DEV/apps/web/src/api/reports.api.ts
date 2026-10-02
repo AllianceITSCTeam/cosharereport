@@ -252,3 +252,226 @@ export async function getCommissionBeneficiariesApi(
   );
   return res.data.data;
 }
+
+export type MerchantProductStatus = 'SELLING' | 'OUT_OF_STOCK' | 'HIDDEN';
+
+export interface IMerchantProductQuery {
+  code?: string;
+  name?: string;
+  groupProductId?: string;
+  status?: MerchantProductStatus;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface IMerchantProductRow {
+  id: string;
+  code: string | null;
+  name: string | null;
+  groupCode: string | null;
+  groupName: string | null;
+  status: MerchantProductStatus;
+  link: string;
+}
+
+export interface IMerchantProductResult {
+  rows: IMerchantProductRow[];
+  pagination: { page: number; pageSize: number; totalCount: number };
+}
+
+export async function getMerchantProductsApi(
+  query: IMerchantProductQuery,
+): Promise<IMerchantProductResult> {
+  const res = await apiClient.get<{ success: boolean; data: IMerchantProductResult }>(
+    '/reports/merchant-products',
+    { params: query },
+  );
+  return res.data.data;
+}
+
+export interface IMerchantGroupProductOption {
+  id: string;
+  code: string | null;
+  name: string | null;
+}
+
+export async function getMerchantProductGroupsApi(): Promise<IMerchantGroupProductOption[]> {
+  const res = await apiClient.get<{ success: boolean; data: IMerchantGroupProductOption[] }>(
+    '/reports/merchant-products/groups',
+  );
+  return res.data.data;
+}
+
+export type SalesCountSortBy = 'salesCount' | 'code' | 'name';
+export type SalesCountSortDir = 'asc' | 'desc';
+
+export interface ISalesCountQuery {
+  from: string;
+  to: string;
+  timezone?: string;
+  code?: string;
+  name?: string;
+  groupProductId?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: SalesCountSortBy;
+  sortDir?: SalesCountSortDir;
+}
+
+export interface ISalesCountRow {
+  id: string;
+  code: string | null;
+  name: string | null;
+  groupCode: string | null;
+  groupName: string | null;
+  salesCount: number;
+}
+
+export interface ISalesCountResult {
+  rows: ISalesCountRow[];
+  pagination: { page: number; pageSize: number; totalCount: number };
+}
+
+export async function getSalesCountApi(query: ISalesCountQuery): Promise<ISalesCountResult> {
+  const res = await apiClient.get<{ success: boolean; data: ISalesCountResult }>(
+    '/reports/sales-count',
+    { params: query },
+  );
+  return res.data.data;
+}
+
+export interface IDashboardTopCtvRow {
+  affiliateUserId: string;
+  displayName: string | null;
+  totalCommission: string;
+}
+
+export interface IDashboardTopCtvQuery {
+  month?: string;
+}
+
+export async function getDashboardTopCtvApi(
+  query: IDashboardTopCtvQuery = {},
+): Promise<IDashboardTopCtvRow[]> {
+  const res = await apiClient.get<{ success: boolean; data: IDashboardTopCtvRow[] }>(
+    '/reports/dashboard/top-ctv',
+    { params: query },
+  );
+  return res.data.data;
+}
+
+export interface ICommissionTrendRow {
+  month: string;
+  revenue: string;
+  totalOrders: number;
+  successOrders: number;
+  cancelledOrders: number;
+  totalCommission: string;
+}
+
+export interface ICommissionTrendQuery {
+  toMonth?: string;
+  months?: number;
+  timezone?: string;
+}
+
+export async function getCommissionTrendApi(
+  query: ICommissionTrendQuery = {},
+): Promise<ICommissionTrendRow[]> {
+  const res = await apiClient.get<{ success: boolean; data: ICommissionTrendRow[] }>(
+    '/reports/commission/trend',
+    { params: query },
+  );
+  return res.data.data;
+}
+
+export interface ITopGroupProductsQuery {
+  from: string;
+  to: string;
+  timezone?: string;
+  page?: number;
+  pageSize?: number;
+  sortDir?: 'asc' | 'desc';
+}
+
+export interface ITopGroupProductRow {
+  id: string;
+  code: string | null;
+  name: string | null;
+  salesCount: number;
+}
+
+export interface ITopGroupProductsResult {
+  rows: ITopGroupProductRow[];
+  pagination: { page: number; pageSize: number; totalCount: number };
+}
+
+export async function getTopGroupProductsApi(
+  query: ITopGroupProductsQuery,
+): Promise<ITopGroupProductsResult> {
+  const res = await apiClient.get<{ success: boolean; data: ITopGroupProductsResult }>(
+    '/reports/sales-count/by-group',
+    { params: query },
+  );
+  return res.data.data;
+}
+
+export interface IDashboardCtvReferralRow {
+  userLoginId: string;
+  displayName: string | null;
+  referralCode: string | null;
+  directReferrals: number;
+}
+
+export interface IDashboardCtvReferralQuery {
+  month?: string;
+}
+
+export async function getDashboardTopCtvReferralApi(
+  query: IDashboardCtvReferralQuery = {},
+): Promise<IDashboardCtvReferralRow[]> {
+  const res = await apiClient.get<{ success: boolean; data: IDashboardCtvReferralRow[] }>(
+    '/reports/dashboard/top-ctv-referral',
+    { params: query },
+  );
+  return res.data.data;
+}
+
+export interface IDashboardCommissionByLevelQuery {
+  from: string;
+  to: string;
+  timezone?: string;
+}
+
+export async function getDashboardCommissionByLevelApi(
+  query: IDashboardCommissionByLevelQuery,
+): Promise<ICommissionByLevelRow[]> {
+  const res = await apiClient.get<{ success: boolean; data: ICommissionByLevelRow[] }>(
+    '/reports/dashboard/commission-by-level',
+    { params: query },
+  );
+  return res.data.data;
+}
+
+export interface IOrderStatusBreakdownQuery {
+  from: string;
+  to: string;
+  timezone?: string;
+}
+
+export interface IOrderStatusBreakdownResult {
+  success: number;
+  cancelled: number;
+  other: number;
+  total: number;
+}
+
+export async function getOrderStatusBreakdownApi(
+  query: IOrderStatusBreakdownQuery,
+): Promise<IOrderStatusBreakdownResult> {
+  const res = await apiClient.get<{ success: boolean; data: IOrderStatusBreakdownResult }>(
+    '/reports/dashboard/order-status-breakdown',
+    { params: query },
+  );
+  return res.data.data;
+}

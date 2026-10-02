@@ -1,3 +1,5 @@
+import { useRef, useState } from 'react';
+
 export interface SimplePieChartSlice {
   label: string;
   value: number;
@@ -10,12 +12,21 @@ interface SimplePieChartProps {
   formatValue?: (value: number) => string;
 }
 
+interface HoverState {
+  slice: SimplePieChartSlice;
+  x: number;
+  y: number;
+}
+
 /**
  * Dependency-free SVG pie chart — no chart library is installed in this app yet
  * and the slice count here is small (AffiliateLevel has 3 tiers), so a hand-rolled
- * SVG avoids pulling in a new package for one chart.
+ * SVG avoids pulling in a new package for one chart. Hovering a slice shows a
+ * small tooltip with that slice's legend entry (label/value/%).
  */
 export function SimplePieChart({ data, size = 220, formatValue = String }: SimplePieChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<HoverState | null>(null);
   const total = data.reduce((sum, d) => sum + d.value, 0);
   const radius = size / 2;
 
@@ -48,13 +59,29 @@ export function SimplePieChart({ data, size = 220, formatValue = String }: Simpl
         })
     : [];
 
+  function updateHover(e: React.MouseEvent<SVGPathElement>, slice: SimplePieChartSlice) {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setHover({ slice, x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-6">
+    <div ref={containerRef} className="relative flex flex-wrap items-center gap-6">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Pie chart">
         {total === 0 ? (
           <circle cx={radius} cy={radius} r={radius - 1} className="fill-muted" />
         ) : (
-          slices.map((s) => <path key={s.label} d={s.path} fill={s.color} />)
+          slices.map((s) => (
+            <path
+              key={s.label}
+              d={s.path}
+              fill={s.color}
+              className="cursor-pointer transition-opacity hover:opacity-90"
+              onMouseEnter={(e) => updateHover(e, s)}
+              onMouseMove={(e) => updateHover(e, s)}
+              onMouseLeave={() => setHover(null)}
+            />
+          ))
         )}
       </svg>
       <ul className="space-y-1.5">
@@ -69,6 +96,21 @@ export function SimplePieChart({ data, size = 220, formatValue = String }: Simpl
           </li>
         ))}
       </ul>
+      {hover && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md"
+          style={{ left: hover.x, top: hover.y - 10 }}
+        >
+          <div className="flex items-center gap-1.5 font-medium">
+            <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: hover.slice.color }} />
+            {hover.slice.label}
+          </div>
+          <div className="text-muted-foreground">
+            {formatValue(hover.slice.value)}
+            {total > 0 && ` (${((hover.slice.value / total) * 100).toFixed(1)}%)`}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

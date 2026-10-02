@@ -60,3 +60,28 @@ export function toUtcDateRange(
     lte: localDayToUtc(endDate, true, timezone),
   };
 }
+
+/** Returns the first/last day (YYYY-MM-DD) of the given "YYYY-MM" calendar month. */
+export function getMonthRange(month: string): { from: string; to: string } {
+  const [yearStr, monthStr] = month.split('-');
+  const lastDay = new Date(Date.UTC(Number(yearStr), Number(monthStr), 0)).getUTCDate();
+
+  return {
+    from: `${yearStr}-${monthStr}-01`,
+    to: `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
+
+/**
+ * Returns the first/last day (YYYY-MM-DD) of the current calendar month, as seen
+ * in the given IANA timezone — for "this month" dashboard reports with no month filter.
+ */
+export function getCurrentMonthRange(timezone?: string | null): { from: string; to: string } {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone || 'UTC',
+    year: 'numeric',
+    month: '2-digit',
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p) => [p.type, p.value]));
+  return getMonthRange(`${parts['year']}-${parts['month']}`);
+}
