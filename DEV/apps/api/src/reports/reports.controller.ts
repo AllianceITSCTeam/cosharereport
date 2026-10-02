@@ -11,6 +11,14 @@ import {
   CommissionDetailQueryDto,
 } from './dto/commission-detail-query.dto';
 import { CommissionOverviewQueryDto } from './dto/commission-overview-query.dto';
+import { CommissionTrendQueryDto } from './dto/commission-trend-query.dto';
+import { DashboardCommissionByLevelQueryDto } from './dto/dashboard-commission-by-level-query.dto';
+import { DashboardCtvReferralQueryDto } from './dto/dashboard-ctv-referral-query.dto';
+import { DashboardTopCtvQueryDto } from './dto/dashboard-ctv-query.dto';
+import { MerchantProductQueryDto } from './dto/merchant-product-query.dto';
+import { OrderStatusBreakdownQueryDto } from './dto/order-status-breakdown-query.dto';
+import { SalesCountQueryDto } from './dto/sales-count-query.dto';
+import { TopGroupProductsQueryDto } from './dto/top-group-products-query.dto';
 import { ReportsService } from './reports.service';
 
 @ApiTags('reports')
@@ -57,6 +65,12 @@ export class ReportsController {
       `attachment; filename="hoa-hong-tong-quan-${Date.now()}.xlsx"`,
     );
     res.send(buffer);
+  }
+
+  /** Dashboard — Xu hướng doanh thu & hoa hồng N tháng gần nhất (mặc định 6, tối đa 12). */
+  @Get('commission/trend')
+  commissionTrend(@Query() query: CommissionTrendQueryDto) {
+    return this.reportsService.commissionTrend(query);
   }
 
   /** Screen 2A — Hoa hồng theo công ty: drill-down theo người bán. Bắt buộc companyId. */
@@ -133,5 +147,53 @@ export class ReportsController {
   @Get('commission/beneficiaries')
   commissionBeneficiaries(@Query() query: CommissionBeneficiariesQueryDto) {
     return this.reportsService.commissionBeneficiaries(query);
+  }
+
+  /** Hàng hóa trên website: danh sách sản phẩm, lọc theo mã/tên/nhóm/trạng thái. */
+  @Get('merchant-products')
+  merchantProducts(@Query() query: MerchantProductQueryDto) {
+    return this.reportsService.merchantProducts(query);
+  }
+
+  /** Danh sách nhóm hàng cho filter "Nhóm hàng" của báo cáo Hàng hóa trên website. */
+  @Get('merchant-products/groups')
+  merchantProductGroups() {
+    return this.reportsService.merchantProductGroups();
+  }
+
+  /** Thống kê lượt bán: toàn bộ sản phẩm, lượt bán = SUM(Quantity) trong khoảng ngày, lọc theo mã/tên/nhóm. */
+  @Get('sales-count')
+  salesCount(@Query() query: SalesCountQueryDto) {
+    return this.reportsService.salesCount(query);
+  }
+
+  /** Dashboard — Top 5 CTV theo hoa hồng (đã duyệt) trong tháng hiện tại. */
+  @Get('dashboard/top-ctv')
+  dashboardTopCtv(@Query() query: DashboardTopCtvQueryDto) {
+    return this.reportsService.dashboardTopCtv(query);
+  }
+
+  /** Top nhóm hàng bán chạy — biến thể của sales-count, group theo nhóm hàng. */
+  @Get('sales-count/by-group')
+  topGroupProducts(@Query() query: TopGroupProductsQueryDto) {
+    return this.reportsService.topGroupProducts(query);
+  }
+
+  /** Dashboard — Top 5 CTV theo số người giới thiệu trực tiếp trong tháng hiện tại. */
+  @Get('dashboard/top-ctv-referral')
+  dashboardTopCtvReferral(@Query() query: DashboardCtvReferralQueryDto) {
+    return this.reportsService.dashboardTopCtvReferral(query);
+  }
+
+  /** Dashboard — Hoa hồng theo cấp hệ TOÀN HỆ THỐNG (không lọc công ty). */
+  @Get('dashboard/commission-by-level')
+  dashboardCommissionByLevel(@Query() query: DashboardCommissionByLevelQueryDto) {
+    return this.reportsService.commissionByLevel(query);
+  }
+
+  /** Dashboard — Tỷ lệ đơn thành công/huỷ trong tháng. */
+  @Get('dashboard/order-status-breakdown')
+  orderStatusBreakdown(@Query() query: OrderStatusBreakdownQueryDto) {
+    return this.reportsService.orderStatusBreakdown(query);
   }
 }
